@@ -1,0 +1,6 @@
+{
+  "name": "Toastmasters Connect",
+  "description": "High-fidelity Dashboard for Toastmasters meetings featuring real-time roles logging, pathways evaluations, timer signaling, SAA polling, and AI-powered Minutes of Meeting (MOM).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
