@@ -49,7 +49,7 @@ export const ClubPerformance: React.FC = () => {
               Club Performance Dashboard
             </h2>
             <p className="text-sm text-slate-500 font-sans mt-0.5">
-              Presiding Officer Dashboard • Real-time metrics and progress indicators for Friday Club #124, Area 22, Division D.
+              Presiding Officer Dashboard • Real-time metrics and progress indicators for Sophrosyne VIT Area F4 District 120.
             </p>
           </div>
           <div className="flex gap-2 shrink-0">

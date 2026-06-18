@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: toastmasters-connect
+    runtime: node
+    repo: https://github.com/SugeethJSA/Toastmasters-Connectt
+    branch: main
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+    healthCheckPath: /api/health
+    autoDeploy: true

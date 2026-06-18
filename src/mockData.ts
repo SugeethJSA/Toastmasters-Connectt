@@ -26,6 +26,8 @@ export const INITIAL_MEETING: Meeting = {
   number: 124,
   date: "June 17, 2026",
   theme: "Unlocking Inner Metanoia",
+  name: "Sophrosyne VIT Toastmasters",
+  meetingLink: "",
   wordOfDay: "Metanoia",
   wordOfDayDefinition: "The journey of changing one's mind, heart, self, or way of life to achieve spiritual transformation.",
   phraseOfDay: "Pave the Path",
@@ -36,6 +38,7 @@ export const INITIAL_MEETING: Meeting = {
   timer: "Theresa May",
   ahCounter: "Marcus Brody",
   grammarian: "Grace Brewster",
+  sergeantAtArms: "Helen Ramirez",
   status: "SCHEDULED",
   timeline: [
     {
@@ -135,7 +138,8 @@ export const INITIAL_MEETING: Meeting = {
       quote: "A professional meeting starts with discipline and closes with a comprehensive review of our active team."
     }
   ],
-  guestList: ["Alice Sterling", "Bob Henderson", "Claire Jenkins"]
+  guestList: ["Alice Sterling", "Bob Henderson", "Claire Jenkins"],
+  meetCode: "123456"
 };
 
 export const INITIAL_TIMER_LOGS: TimerLog[] = [
@@ -282,11 +286,34 @@ export const INITIAL_POLLS: SAAPoll[] = [
     question: "Cast your vote for Best Advisor / Evaluator",
     type: "BEST_EVALUATOR",
     options: [
-      { id: "opt-6", name: "Helen Ramirez", votes: 8 },
-      { id: "opt-7", name: "Marcus Brody", votes: 2 }
+      { id: "opt-6", name: "Helen Ramirez", votes: 5 },
+      { id: "opt-7", name: "Marcus Brody", votes: 2 },
+      { id: "opt-8", name: "Jameson Vance (GE)", votes: 3 }
     ],
     active: true,
     totalVotes: 10
+  },
+  {
+    id: "poll-4",
+    question: "Cast your vote for Best Role Player (TMOD / TTM)",
+    type: "BEST_ROLE_PLAYER",
+    options: [
+      { id: "opt-9", name: "Sarah Jenkins (TMOD)", votes: 4 },
+      { id: "opt-10", name: "Pranav Patel (TTM)", votes: 5 }
+    ],
+    active: true,
+    totalVotes: 9
+  },
+  {
+    id: "poll-5",
+    question: "Cast your vote for Best Tag Team Player",
+    type: "BEST_TAG_TEAM",
+    options: [
+      { id: "opt-11", name: "Grace Brewster & Theresa May", votes: 3 },
+      { id: "opt-12", name: "Audrey Chen & David Vance", votes: 6 }
+    ],
+    active: true,
+    totalVotes: 9
   }
 ];
 
@@ -298,7 +325,7 @@ export const PAST_MEETINGS_ARCHIVE = [
     theme: "Resilience in Motion",
     wordOfDay: "Ebullient",
     phraseOfDay: "Spur of the moment",
-    editorialSummary: "Minutes of Friday Meeting #123. TMOD Sarah Jenkins facilitated standard segments on theme 'Resilience in Motion'. Prepared speaker David Vance delivered a brilliant presentation on blockchain metrics timing out at exactly 5:12 (Green Signal), followed by Audrey Chen with dynamic evaluations. The Grammarian report congratulated Jameson for active use of 'Ebullient'. Business section approved standard membership approvals for our 2 newest guests.",
+    editorialSummary: "Minutes of Sophrosyne VIT Area F4 District 120 Meeting #123. TMOD Sarah Jenkins facilitated standard segments on theme 'Resilience in Motion'. Prepared speaker David Vance delivered a brilliant presentation on blockchain metrics timing out at exactly 5:12 (Green Signal), followed by Audrey Chen with dynamic evaluations. The Grammarian report congratulated Jameson for active use of 'Ebullient'. Business section approved standard membership approvals for our 2 newest guests.",
     approved: true,
     approvedBy: "David Vance (President)"
   },

@@ -7,6 +7,7 @@ import {
 
 interface TMODMasterProps {
   meeting: Meeting;
+  setMeeting: React.Dispatch<React.SetStateAction<Meeting>>;
   activeTimelineItem: TimelineItem | null;
   onUpdateTimeline: (newTimeline: TimelineItem[]) => void;
   onSetSpotlight: (item: TimelineItem | null) => void;
@@ -30,15 +31,18 @@ interface TMODMasterProps {
     yellowSeconds: number;
     maxSeconds: number;
   }>>;
+  sendTimerControl: (action: "start" | "pause" | "reset" | "config", overrides?: any) => void;
 }
 
 export const TMODMaster: React.FC<TMODMasterProps> = ({
   meeting,
+  setMeeting,
   activeTimelineItem,
   onUpdateTimeline,
   onSetSpotlight,
   liveTimerState,
   setLiveTimerState,
+  sendTimerControl,
 }) => {
   // Local form state for adding a new timeline slot
   const [formTime, setFormTime] = useState("19:30");
@@ -46,7 +50,33 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
   const [formRole, setFormRole] = useState("Prepared Speaker");
   const [formPlayer, setFormPlayer] = useState("");
   const [formTitle, setFormTitle] = useState("");
+  const [formPhotoUrl, setFormPhotoUrl] = useState("");
   const [formSegment, setFormSegment] = useState<MeetingSegment>(MeetingSegment.PREPARED_SPEECH);
+
+  // Meeting info editing state
+  const [info, setInfo] = useState({
+    name: meeting.name || "",
+    number: meeting.number,
+    date: meeting.date,
+    theme: meeting.theme,
+    meetingLink: meeting.meetingLink || "",
+    toastmasterOfTheDay: meeting.toastmasterOfTheDay,
+  });
+
+  const [vocab, setVocab] = useState({
+    wordOfDay: meeting.wordOfDay,
+    wordOfDayDefinition: meeting.wordOfDayDefinition,
+    phraseOfDay: meeting.phraseOfDay,
+    phraseOfDayMeaning: meeting.phraseOfDayMeaning,
+  });
+
+  const handleSaveInfo = () => {
+    setMeeting(prev => ({ ...prev, ...info }));
+  };
+
+  const handleSaveVocab = () => {
+    setMeeting(prev => ({ ...prev, ...vocab }));
+  };
 
   // AI Script assistant parameters
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
@@ -63,6 +93,19 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
     { name: "LLM_Tech_Impact_David_Vance.pptx", size: "12.1 MB", role: "Speaker 2" }
   ]);
   const [dragOver, setDragOver] = useState(false);
+
+  // Unified Users State for Photo Sync
+  const [registeredUsers, setRegisteredUsers] = useState<any[]>([]);
+  React.useEffect(() => {
+    const API_BASE = import.meta.env.VITE_API_URL || "";
+    fetch(`${API_BASE}/api/users`, { credentials: "include" })
+      .then(r => r.json())
+      .then(d => { if (d.users) setRegisteredUsers(d.users); })
+      .catch(() => {});
+  }, []);
+
+  const matchedUser = activeTimelineItem ? registeredUsers.find(u => u.name === activeTimelineItem.player) : null;
+  const displayPhotoUrl = activeTimelineItem?.photoUrl || matchedUser?.photoUrl || "";
 
   // Reorder agenda timeline items
   const handleMove = (index: number, direction: "up" | "down") => {
@@ -90,7 +133,8 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
       player: formPlayer,
       title: formTitle ? formTitle : undefined,
       segment: formSegment,
-      completed: false
+      completed: false,
+      photoUrl: formPhotoUrl ? formPhotoUrl : undefined
     };
 
     onUpdateTimeline([...meeting.timeline, newItem]);
@@ -98,11 +142,12 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
     // Reset form fields with incremented time estimate
     setFormPlayer("");
     setFormTitle("");
+    setFormPhotoUrl("");
     const [hours, mins] = formTime.split(":").map(Number);
     let nextMins = mins + Number(formDuration);
     let nextHours = hours;
     if (nextMins >= 60) {
-      nextHours = (hours + 1) % 24;
+      nextHours = (hours + Math.floor(nextMins / 60)) % 24;
       nextMins = nextMins % 60;
     }
     setFormTime(`${nextHours.toString().padStart(2, "0")}:${nextMins.toString().padStart(2, "0")}`);
@@ -190,6 +235,14 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
             Refine structural timing arrays, reorder slot hierarchy, project active speakers and tap AI script assistants.
           </p>
         </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setMeeting(prev => ({ ...prev, status: "COMPLETED" }))}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-all font-display uppercase tracking-widest cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4 text-emerald-200" />
+            <span>Conclude Session & Applause</span>
+          </button>
         <button
           onClick={() => setAiAssistantOpen(!aiAssistantOpen)}
           className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-tm-maroon to-tm-lightmaroon text-white text-xs font-semibold rounded-lg shadow-sm hover:opacity-90 transition-all font-display uppercase tracking-widest cursor-pointer"
@@ -197,6 +250,7 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
           <Sparkles className="w-4 h-4 text-tm-yellow animate-spin" />
           <span>{aiAssistantOpen ? "Close AI Script Assist" : "AI Speech Script Assist"}</span>
         </button>
+        </div>
       </div>
 
       {/* Grid: Main Agenda Builder vs Side panels */}
@@ -249,7 +303,18 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
                     </div>
 
                     {/* Member & Topic details */}
-                    <div className="flex-1 min-w-[150px]">
+                  <div className="flex-1 min-w-[150px] flex items-center gap-3">
+                    {item.photoUrl || registeredUsers.find(u => u.name === item.player)?.photoUrl ? (
+                      <img 
+                        src={item.photoUrl || registeredUsers.find(u => u.name === item.player)?.photoUrl} 
+                        className="w-10 h-10 rounded-full object-cover border-2 border-slate-200 shrink-0" 
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-tm-blue/10 text-tm-blue flex items-center justify-center font-bold text-sm shrink-0 border-2 border-tm-blue/20">
+                        {item.player.charAt(0)}
+                      </div>
+                    )}
+                    <div>
                       <p className="text-sm font-semibold text-slate-800">{item.player}</p>
                       {item.title && (
                         <div className="flex items-center gap-1 text-xs text-slate-500 mt-1 capitalize">
@@ -258,6 +323,7 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
                         </div>
                       )}
                     </div>
+                  </div>
 
                     {/* Quick controls: Spotlight, Complete, Move (up/down), Delete */}
                     <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
@@ -435,9 +501,9 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
                 <div className="space-y-4.5 bg-slate-50 p-4 rounded-xl border border-slate-100">
                   {/* Spotlight Person details */}
                   <div className="flex items-center gap-3.5">
-                    {activeTimelineItem.photoUrl ? (
+                    {displayPhotoUrl ? (
                       <img 
-                        src={activeTimelineItem.photoUrl} 
+                        src={displayPhotoUrl} 
                         alt={activeTimelineItem.player} 
                         className="w-12 h-12 rounded-lg object-cover border-2 border-[#F2DF74] shrink-0"
                         referrerPolicy="no-referrer"
@@ -475,23 +541,49 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
                     <div className="space-y-2">
                       <div className="flex gap-2">
                         <span className="text-[10px] font-mono text-slate-400 w-14 pt-2 shrink-0">Photo URL:</span>
-                        <input 
-                          type="text" 
-                          value={activeTimelineItem.photoUrl || ""} 
-                          onChange={(e) => {
-                            const updatedTimeline = meeting.timeline.map(it => {
-                              if (it.id === activeTimelineItem.id) {
-                                return { ...it, photoUrl: e.target.value };
-                              }
-                              return it;
-                            });
-                            onUpdateTimeline(updatedTimeline);
-                            // Auto-refresh active spotlight item fields
-                            onSetSpotlight({ ...activeTimelineItem, photoUrl: e.target.value });
-                          }}
-                          placeholder="https://images.unsplash.com/photo-..." 
-                          className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 font-mono text-[11px] focus:outline-tm-blue bg-white"
-                        />
+                        <div className="flex-1 flex flex-col gap-1.5">
+                          <input 
+                            type="text" 
+                            value={activeTimelineItem.photoUrl || ""} 
+                            onChange={(e) => {
+                              const updatedTimeline = meeting.timeline.map(it => {
+                                if (it.id === activeTimelineItem.id) {
+                                  return { ...it, photoUrl: e.target.value };
+                                }
+                                return it;
+                              });
+                              onUpdateTimeline(updatedTimeline);
+                              onSetSpotlight({ ...activeTimelineItem, photoUrl: e.target.value });
+                            }}
+                        placeholder={matchedUser?.photoUrl ? "Using member's default profile picture..." : "Paste photo URL here to update..."} 
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 font-mono text-[11px] focus:outline-tm-blue bg-white"
+                          />
+                      {matchedUser ? (
+                            <button
+                              onClick={async () => {
+                                try {
+                              const photoToSave = activeTimelineItem.photoUrl || "";
+                                  const API_BASE = import.meta.env.VITE_API_URL || "";
+                                  const res = await fetch(`${API_BASE}/api/users/${matchedUser._id || matchedUser.id}`, {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    credentials: "include",
+                                body: JSON.stringify({ photoUrl: photoToSave })
+                                  });
+                                  if (res.ok) {
+                                alert(`Photo successfully updated in ${matchedUser.name}'s unified member profile!`);
+                                setRegisteredUsers(prev => prev.map(u => (u._id === matchedUser._id || u.id === matchedUser.id) ? { ...u, photoUrl: photoToSave } : u));
+                                  }
+                                } catch (err) {}
+                              }}
+                          className="text-[9px] bg-tm-blue/10 text-tm-blue hover:bg-tm-blue hover:text-white px-2 py-1.5 rounded font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors self-start mt-0.5"
+                            >
+                          <Image className="w-3.5 h-3.5" /> Save to {matchedUser.name}'s Account Profile
+                            </button>
+                      ) : (
+                        <span className="text-[9px] text-amber-500 font-semibold px-1">⚠️ Guest/Unregistered: Photo only saves for this meeting session.</span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="flex gap-2">
@@ -547,7 +639,7 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
                 <div className="flex gap-2">
                   {liveTimerState.isRunning ? (
                     <button
-                      onClick={() => setLiveTimerState(prev => ({ ...prev, isRunning: false }))}
+                      onClick={() => { setLiveTimerState(prev => ({ ...prev, isRunning: false })); sendTimerControl("pause"); }}
                       className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold tracking-wider uppercase text-[10px] transition-colors cursor-pointer"
                     >
                       <Pause className="w-3.5 h-3.5" />
@@ -555,7 +647,7 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
                     </button>
                   ) : (
                     <button
-                      onClick={() => setLiveTimerState(prev => ({ ...prev, isRunning: true }))}
+                      onClick={() => { setLiveTimerState(prev => ({ ...prev, isRunning: true })); sendTimerControl("start", { speaker: liveTimerState.speaker, role: liveTimerState.role, minSeconds: liveTimerState.minSeconds, yellowSeconds: liveTimerState.yellowSeconds, maxSeconds: liveTimerState.maxSeconds }); }}
                       className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white font-bold tracking-wider uppercase text-[10px] transition-colors cursor-pointer"
                     >
                       <Play className="w-3.5 h-3.5" />
@@ -564,7 +656,7 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
                   )}
 
                   <button
-                    onClick={() => setLiveTimerState(prev => ({ ...prev, isRunning: false, seconds: 0, signal: "NONE" }))}
+                    onClick={() => { setLiveTimerState(prev => ({ ...prev, isRunning: false, seconds: 0, signal: "NONE" })); sendTimerControl("reset"); }}
                     className="flex flex-center items-center justify-center hover:bg-white/10 text-slate-300 border border-slate-700 p-2 rounded-lg transition-colors cursor-pointer"
                     title="Reset timer to 0 seconds"
                   >
@@ -587,6 +679,87 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
                   <span>-</span>
                   <span className="text-white font-mono">{(liveTimerState.maxSeconds/60)}m</span>
                 </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Meeting Information Card — title, number, name, link, date, WOD/POD */}
+          <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 space-y-5">
+            <h3 className="font-display font-semibold text-sm text-slate-700 flex items-center gap-2">
+              <Edit3 className="w-4.5 h-4.5 text-tm-maroon" /> Meeting Information
+            </h3>
+
+            {/* Basic Info */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans text-xs border-b border-slate-100 pb-4">
+              <div className="space-y-1.5">
+                <label className="text-slate-500 font-medium">Meeting Name</label>
+                <input type="text" value={info.name} onChange={e => setInfo(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-slate-700 focus:outline-tm-blue outline-none" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-slate-500 font-medium">Meeting Number</label>
+                <input type="number" value={info.number} onChange={e => setInfo(prev => ({ ...prev, number: Number(e.target.value) }))}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-slate-700 focus:outline-tm-blue outline-none" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-slate-500 font-medium">Title / Theme</label>
+                <input type="text" value={info.theme} onChange={e => setInfo(prev => ({ ...prev, theme: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-slate-700 focus:outline-tm-blue outline-none" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-slate-500 font-medium">Date</label>
+                <input type="text" value={info.date} onChange={e => setInfo(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-slate-700 focus:outline-tm-blue outline-none" />
+              </div>
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-slate-500 font-medium">Meeting Link (Zoom / Google Meet)</label>
+                <input type="url" value={info.meetingLink} onChange={e => setInfo(prev => ({ ...prev, meetingLink: e.target.value }))}
+                  placeholder="https://zoom.us/j/..." className="w-full px-3 py-2 rounded-lg border border-slate-200 text-slate-700 focus:outline-tm-blue outline-none" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-slate-500 font-medium">Toastmaster of the Day (TMOD)</label>
+                <input type="text" value={info.toastmasterOfTheDay} onChange={e => setInfo(prev => ({ ...prev, toastmasterOfTheDay: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-slate-700 focus:outline-tm-blue outline-none" />
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button type="button" onClick={handleSaveInfo}
+                className="px-4 py-2 bg-tm-blue hover:bg-tm-dark text-white rounded-lg font-semibold font-display tracking-wider uppercase transition-colors text-xs cursor-pointer flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5" /> Update Meeting Info
+              </button>
+            </div>
+
+            {/* Vocabulary Section */}
+            <div className="border-t border-slate-100 pt-4">
+              <h4 className="font-display font-semibold text-xs text-slate-600 mb-3 uppercase tracking-wider">Word & Phrase of the Day</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans text-xs">
+                <div className="space-y-1.5">
+                  <label className="text-slate-500 font-medium">Word of the Day</label>
+                  <input type="text" value={vocab.wordOfDay} onChange={e => setVocab(prev => ({ ...prev, wordOfDay: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-slate-700 focus:outline-tm-blue outline-none" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-slate-500 font-medium">Definition</label>
+                  <input type="text" value={vocab.wordOfDayDefinition} onChange={e => setVocab(prev => ({ ...prev, wordOfDayDefinition: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-slate-700 focus:outline-tm-blue outline-none" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-slate-500 font-medium">Phrase of the Day</label>
+                  <input type="text" value={vocab.phraseOfDay} onChange={e => setVocab(prev => ({ ...prev, phraseOfDay: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-slate-700 focus:outline-tm-blue outline-none" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-slate-500 font-medium">Meaning</label>
+                  <input type="text" value={vocab.phraseOfDayMeaning} onChange={e => setVocab(prev => ({ ...prev, phraseOfDayMeaning: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-slate-700 focus:outline-tm-blue outline-none" />
+                </div>
+              </div>
+              <div className="flex justify-end mt-3">
+                <button type="button" onClick={handleSaveVocab}
+                  className="px-4 py-2 bg-tm-blue hover:bg-tm-dark text-white rounded-lg font-semibold font-display tracking-wider uppercase transition-colors text-xs cursor-pointer flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5" /> Update Vocabulary
+                </button>
               </div>
             </div>
           </div>

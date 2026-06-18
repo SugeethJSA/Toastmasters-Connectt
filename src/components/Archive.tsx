@@ -251,7 +251,7 @@ Approved Status: ${selectedMOM.approved ? `Yes (By ${selectedMOM.approvedBy})` :
                     <h1 className="text-2xl font-bold font-display tracking-tight text-white mt-1.5">
                       TOASTMASTERS INTERNATIONAL
                     </h1>
-                    <p className="text-xs text-slate-350 font-medium">Friday Club #124 • Area 22 • Division D</p>
+                    <p className="text-xs text-slate-350 font-medium">Sophrosyne VIT Area F4 District 120</p>
                   </div>
 
                   <div className="flex items-center gap-2">

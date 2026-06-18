@@ -23,6 +23,8 @@ export interface Meeting {
   number: number;
   date: string;
   theme: string;
+  name?: string;
+  meetingLink?: string;
   wordOfDay: string;
   wordOfDayDefinition: string;
   phraseOfDay: string;
@@ -33,9 +35,22 @@ export interface Meeting {
   timer: string;
   ahCounter: string;
   grammarian: string;
+  sergeantAtArms: string;
   status: "SCHEDULED" | "IN_PROGRESS" | "COMPLETED";
   timeline: TimelineItem[];
   guestList: string[];
+  meetCode?: string;
+  activeTimelineItemId?: string;
+  liveTimerState?: {
+    isRunning: boolean;
+    seconds: number;
+    signal: "NONE" | "GREEN" | "YELLOW" | "RED";
+    speaker: string;
+    role: string;
+    minSeconds: number;
+    yellowSeconds: number;
+    maxSeconds: number;
+  };
 }
 
 export interface TimerLog {
@@ -111,7 +126,7 @@ export interface SAAPoll {
   question: string;
   options: { id: string; name: string; votes: number }[];
   active: boolean;
-  type: "BEST_SPEAKER" | "BEST_TABLE_TOPICS" | "BEST_EVALUATOR" | "CUSTOM";
+  type: "BEST_SPEAKER" | "BEST_TABLE_TOPICS" | "BEST_EVALUATOR" | "BEST_ROLE_PLAYER" | "BEST_TAG_TEAM" | "CUSTOM";
   totalVotes: number;
 }
 

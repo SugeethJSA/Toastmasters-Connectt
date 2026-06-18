@@ -31,6 +31,10 @@ export const MeetingAuthorization: React.FC<MeetingAuthorizationProps> = ({
       alert("Please verify all preceding pre-flight checklist protocols before initiating session authorization!");
       return;
     }
+    fetch("/api/meetings/sync", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(meeting),
+    }).catch(() => {});
     onAuthorizeAndStart();
   };
 

@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "motion/react";
 
 interface StageViewProps {
   meeting: Meeting;
+  setMeeting: React.Dispatch<React.SetStateAction<Meeting>>;
   activeTimelineItem: TimelineItem | null;
   liveTimerState: {
     isRunning: boolean;
@@ -28,13 +29,24 @@ interface StageViewProps {
     yellowSeconds: number;
     maxSeconds: number;
   }>>;
+  sendTimerControl: (action: "start" | "pause" | "reset" | "config", overrides?: any) => void;
+  stageTopic: { id: string; prompt: string; theme: string; assignedSpeaker?: string } | null;
+  sendTopicControl: (action: "show" | "hide" | "clear", topicData?: any) => void;
+  onToggleFullScreen?: () => void;
+  isFullScreen?: boolean;
 }
 
 export const StageView: React.FC<StageViewProps> = ({
   meeting,
+  setMeeting,
   activeTimelineItem,
   liveTimerState,
   setLiveTimerState,
+  sendTimerControl,
+  stageTopic,
+  sendTopicControl,
+  onToggleFullScreen,
+  isFullScreen
 }) => {
   // Determine speaker details
   const displaySpeaker = liveTimerState.isRunning
@@ -51,20 +63,50 @@ export const StageView: React.FC<StageViewProps> = ({
 
   const displayTitle = liveTimerState.isRunning
     ? `Active Track: ${liveTimerState.role}`
-    : activeTimelineItem?.title || "Welcome to Friday Club Meeting #" + meeting.number;
+    : activeTimelineItem?.title || `Meeting #${meeting.number}`;
 
   const displaySegment = activeTimelineItem
     ? activeTimelineItem.segment.replace("_", " ")
     : "Introductory Sessions";
 
-  // Retrive speaker quote and photo
-  const photoUrl = activeTimelineItem?.photoUrl;
+  // Toggle timer card visibility (persisted in localStorage)
+  const [showTimer, setShowTimer] = React.useState(() => localStorage.getItem("stageShowTimer") !== "false");
+  // Guest management
+  const [newGuest, setNewGuest] = React.useState("");
+
+  // Unified Users State for Photo Sync
+  const [registeredUsers, setRegisteredUsers] = React.useState<any[]>([]);
+  React.useEffect(() => {
+    const API_BASE = import.meta.env.VITE_API_URL || "";
+    const fetchUsers = () => {
+      fetch(`${API_BASE}/api/users`)
+        .then(r => r.json())
+        .then(d => { if (d.users) setRegisteredUsers(d.users); })
+        .catch(() => {});
+    };
+    
+    fetchUsers();
+    const intervalId = setInterval(fetchUsers, 1000);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const matchedUser = activeTimelineItem ? registeredUsers.find(u => u.name === activeTimelineItem.player) : null;
+
+  // Format time (mm:ss)
+  const formatTime = (secs: number) => {
+    const mins = Math.floor(secs / 60);
+    const remainingSecs = secs % 60;
+    return `${mins.toString().padStart(2, "0")}:${remainingSecs.toString().padStart(2, "0")}`;
+  };
+
+  // Retrive speaker quote and photo with unified profile fallback
+  const photoUrl = activeTimelineItem?.photoUrl || matchedUser?.photoUrl || undefined;
   const speakerQuote = activeTimelineItem?.quote || "Paving the path of communication and transformative leadership.";
 
   // Map signal to background color classes for the stage card
   const getSignalBgColor = () => {
     switch (liveTimerState.signal) {
-      case "GREEN":
+      case "GREEN": 
         return "bg-emerald-600 text-white border-emerald-500 shadow-emerald-200";
       case "YELLOW":
         return "bg-amber-500 text-slate-900 border-amber-400 shadow-amber-100";
@@ -75,15 +117,6 @@ export const StageView: React.FC<StageViewProps> = ({
     }
   };
 
-  // Format time (mm:ss)
-  const formatTime = (secs: number) => {
-    const mins = Math.floor(secs / 60);
-    const remainingSecs = secs % 60;
-    return `${mins.toString().padStart(2, "0")}:${remainingSecs
-      .toString()
-      .padStart(2, "0")}`;
-  };
-
   // Remote Timer controls
   const handleRemoteStart = () => {
     setLiveTimerState(prev => ({
@@ -92,10 +125,12 @@ export const StageView: React.FC<StageViewProps> = ({
       speaker: displaySpeaker,
       role: displayRole
     }));
+    sendTimerControl("start", { speaker: displaySpeaker, role: displayRole, minSeconds: liveTimerState.minSeconds, yellowSeconds: liveTimerState.yellowSeconds, maxSeconds: liveTimerState.maxSeconds });
   };
 
   const handleRemotePause = () => {
     setLiveTimerState(prev => ({ ...prev, isRunning: false }));
+    sendTimerControl("pause");
   };
 
   const handleRemoteReset = () => {
@@ -105,33 +140,87 @@ export const StageView: React.FC<StageViewProps> = ({
       seconds: 0,
       signal: "NONE"
     }));
+    sendTimerControl("reset");
   };
 
   return (
-    <div className="space-y-6" id="stage-view-section">
+    <div className={`space-y-6 ${isFullScreen ? 'min-h-screen bg-tm-dark p-8 overflow-y-auto' : ''}`} id="stage-view-section">
+      {/* Applause Overlay */}
+      <AnimatePresence>
+        {meeting.status === "COMPLETED" && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md pointer-events-none overflow-hidden"
+          >
+            <div className="absolute inset-0 flex justify-center items-start pt-10">
+              {Array.from({length: 30}).map((_, i) => (
+                <motion.div key={i} initial={{ y: -50, x: Math.random() * window.innerWidth, opacity: 1 }} animate={{ y: window.innerHeight, opacity: 0, rotate: 360 }} transition={{ duration: 2 + Math.random() * 2, repeat: Infinity, delay: Math.random() }} className="absolute text-4xl">
+                  {['🎉', '🎊', '👏', '✨', '💐'][Math.floor(Math.random() * 5)]}
+                </motion.div>
+              ))}
+            </div>
+            <motion.div initial={{ scale: 0.5, y: 50 }} animate={{ scale: 1, y: 0 }} className="text-center bg-white/10 p-12 rounded-3xl border border-white/20 shadow-2xl backdrop-blur-lg">
+              <div className="text-7xl mb-6 animate-bounce">👏👏</div>
+              <h2 className="text-5xl font-display font-extrabold text-white drop-shadow-lg tracking-tight">Session Concluded!</h2>
+              <p className="text-xl text-white/90 mt-4 font-sans font-medium">Thank you for joining today's meeting.</p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Upper Brand Info Panel */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white rounded-xl p-6 border border-slate-100 shadow-sm gap-4">
-        <div>
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-tm-blue/10 text-tm-blue font-display tracking-widest uppercase">
-            Friday Club #{meeting.number}
-          </span>
-          <h2 className="text-2xl font-bold font-display text-tm-dark mt-1">
-            {meeting.theme}
-          </h2>
-          <p className="text-sm text-slate-500 mt-1 font-sans">
-            TMOD: <span className="font-semibold text-slate-700">{meeting.toastmasterOfTheDay}</span> • 📅 {meeting.date}
-          </p>
-        </div>
-        <div className="flex items-center gap-2.5 bg-slate-50 px-4 py-2.5 rounded-lg border border-slate-100">
-          <Tv className="w-5 h-5 text-tm-blue animate-pulse" />
-          <div>
-            <p className="text-[10px] font-mono font-medium text-slate-400 uppercase tracking-widest leading-none">
-              Stage Connection
+      <div className={`flex flex-col sm:flex-row justify-between items-start bg-white rounded-xl p-6 border border-slate-100 shadow-sm gap-4 ${isFullScreen ? 'opacity-90' : ''}`}>
+        <div className="flex items-start gap-4 min-w-0">
+          <img src="/toastmasters-logo.svg" alt="Toastmasters" className="w-16 h-16 shrink-0 mt-1" />
+          <div className="min-w-0">
+            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-tm-blue/10 text-tm-blue tracking-widest uppercase">
+              Meeting #{meeting.number}
+            </span>
+            <h2 className="text-2xl font-bold font-display text-tm-dark mt-2">
+              {meeting.theme}
+            </h2>
+            <p className="text-sm text-slate-500 mt-1.5 font-sans">
+              TMOD: <span className="font-semibold text-slate-700">{meeting.toastmasterOfTheDay}</span>
             </p>
-            <p className="text-sm font-semibold text-slate-700 font-sans mt-0.5">
-              Live Stage Projected
-            </p>
+            {meeting.meetingLink && (
+              <a href={meeting.meetingLink} target="_blank" rel="noopener noreferrer" className="text-xs text-tm-blue hover:underline mt-1 inline-block">
+                Join Meeting ↗
+              </a>
+            )}
           </div>
+        </div>
+
+          <div className="flex items-start gap-6 shrink-0">
+            <div className="text-right text-xs text-slate-500 font-sans leading-relaxed">
+              <p><strong>Club:</strong> Sophrosyne VIT</p>
+              <p><strong>Area:</strong> F4 &nbsp;•&nbsp; <strong>District:</strong> 120</p>
+              <p className="mt-1">📅 {meeting.date}</p>
+              {meeting.name && <p className="text-slate-400 mt-1">{meeting.name}</p>}
+            </div>
+            <div className="flex items-start gap-2">
+              <button
+                onClick={() => setShowTimer(p => { const next = !p; localStorage.setItem("stageShowTimer", String(next)); return next; })}
+                className={`shrink-0 w-10 h-10 flex items-center justify-center border rounded-lg transition-colors cursor-pointer ${
+                  showTimer
+                    ? "bg-tm-blue/10 border-tm-blue/30 text-tm-blue"
+                    : "bg-slate-50 border-slate-200 text-slate-400"
+                }`}
+                title={showTimer ? "Hide Timer" : "Show Timer"}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </button>
+              {onToggleFullScreen && (
+                <button
+                  onClick={onToggleFullScreen}
+                  className="shrink-0 w-10 h-10 flex items-center justify-center bg-slate-50 border border-slate-200 rounded-lg hover:bg-tm-blue hover:text-white text-slate-500 transition-colors cursor-pointer"
+                  title={isFullScreen ? "Exit Fullscreen" : "Go Fullscreen"}
+                >
+                  <Tv className="w-5 h-5" />
+                </button>
+              )}
+            </div>
         </div>
       </div>
 
@@ -141,13 +230,15 @@ export const StageView: React.FC<StageViewProps> = ({
         <div className="lg:col-span-2 bg-[#004165] rounded-2xl overflow-hidden border border-tm-blue/20 shadow-lg flex flex-col justify-between relative min-h-[460px]">
           {/* Subtle background TM ribbon styling */}
           <div className="absolute inset-0 bg-gradient-to-tr from-tm-dark/95 via-tm-blue/80 to-transparent pointer-events-none opacity-90" />
+          {/* Summer FM accent */}
+          <div className="absolute top-4 right-4 text-yellow-300/20 text-2xl select-none pointer-events-none">📻 ☀️ 🎵</div>
 
           {/* Top Stage Bar with Active Section Name */}
           <div className="relative z-10 p-6 flex justify-between items-center bg-black/25 backdrop-blur-sm border-b border-white/5">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
               <p className="text-xs font-mono font-semibold text-white/90 tracking-wider uppercase">
-                ON STAGE • SPOTLIGHT ACTIVE
+                <span className="mr-1.5">📻</span> ON STAGE • SPOTLIGHT ACTIVE
               </p>
             </div>
             <div className="flex items-center gap-1.5">
@@ -169,8 +260,8 @@ export const StageView: React.FC<StageViewProps> = ({
                     className="w-24 h-24 md:w-32 md:h-32 rounded-2xl object-cover border-4 border-[#F2DF74] bg-white/10 shadow-lg text-white"
                     referrerPolicy="no-referrer"
                   />
-                  <span className="absolute bottom-1 right-1 p-1 bg-emerald-500 text-white rounded-full text-[8px] font-bold border border-white">
-                    LIVE
+                  <span className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-tm-maroon text-white rounded text-[8px] font-bold border border-white/30">
+                    LIVE 📻
                   </span>
                 </div>
               ) : (
@@ -187,6 +278,7 @@ export const StageView: React.FC<StageViewProps> = ({
                 <p className="text-xs font-mono text-[#F2DF74] uppercase tracking-widest font-bold">
                   {displayRole}
                 </p>
+                <div className="w-10 h-0.5 bg-tm-maroon mt-1.5 mb-2 rounded-full" />
                 <h1 className="text-3xl md:text-4xl font-extrabold font-display text-white mt-1 tracking-tight drop-shadow-md">
                   {displaySpeaker}
                 </h1>
@@ -198,12 +290,44 @@ export const StageView: React.FC<StageViewProps> = ({
               {/* Quote if needed */}
               <div className="relative bg-black/20 p-4 rounded-xl border border-white/5 max-w-xl mx-auto md:mx-0">
                 <Quote className="absolute -top-2.5 -left-2 w-5 h-5 text-tm-maroon transform rotate-180 opacity-60" />
+                <span className="absolute bottom-2 right-2 text-[10px] opacity-30 select-none">📻</span>
                 <p className="text-sm text-slate-200 font-sans font-light italic pl-3 pr-2 select-none leading-relaxed">
                   "{speakerQuote}"
                 </p>
               </div>
             </div>
           </div>
+
+          {/* Table Topic Prompt Overlay */}
+          <AnimatePresence>
+            {stageTopic && (
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -30 }}
+                className="relative z-10 px-8 pb-6"
+              >
+                <div className="bg-white/10 backdrop-blur-md border border-[#F2DF74]/30 rounded-xl p-5 text-center">
+                  <div className="flex items-center justify-center gap-2 mb-3">
+                    <span className="w-2 h-2 rounded-full bg-tm-maroon animate-pulse" />
+                    <span className="text-[10px] font-mono font-bold text-[#F2DF74] uppercase tracking-widest">TABLE TOPICS PROMPT</span>
+                    <span className="w-2 h-2 rounded-full bg-tm-maroon animate-pulse" />
+                  </div>
+                  <p className="text-lg md:text-xl font-display font-bold text-white leading-relaxed drop-shadow-md">
+                    "{stageTopic.prompt}"
+                  </p>
+                  {stageTopic.assignedSpeaker && (
+                    <p className="text-sm text-[#F2DF74] font-mono mt-2">
+                      Assigned to: <span className="text-white font-semibold">{stageTopic.assignedSpeaker}</span>
+                    </p>
+                  )}
+                  <p className="text-[10px] text-white/60 font-mono mt-2 uppercase tracking-wider">
+                    Theme: {stageTopic.theme}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Bottom Stage Status */}
           <div className="relative z-10 p-6 bg-black/35 backdrop-blur-sm flex flex-col sm:flex-row justify-between items-stretch sm:items-center border-t border-white/5 gap-3">
@@ -212,7 +336,7 @@ export const StageView: React.FC<StageViewProps> = ({
                 <Sparkles className="w-4.5 h-4.5 text-[#F2DF74]" />
               </span>
               <div>
-                <p className="text-[10px] text-white/60 font-mono tracking-wider uppercase">Stage Guidance Active</p>
+                <p className="text-[10px] text-white/60 font-mono tracking-wider uppercase">☀️ Stage Guidance Active</p>
                 <p className="text-xs text-white/95 font-medium font-sans">
                   Time tracker synchronized. Digital ledger is locked for authentication purposes.
                 </p>
@@ -228,7 +352,8 @@ export const StageView: React.FC<StageViewProps> = ({
           </div>
         </div>
 
-        {/* Right 1 Column: Real-time Signal Card & Remote Trigger Deck */}
+        {/* Right 1 Column: Timer Signal Card or WOD/POD Card when timer hidden */}
+        {showTimer ? (
         <div className={`rounded-2xl border-2 p-6 flex flex-col justify-between shadow-md transition-all duration-500 ${getSignalBgColor()}`}>
           <div>
             <div className="flex justify-between items-center pb-4 border-b border-white/10">
@@ -345,17 +470,37 @@ export const StageView: React.FC<StageViewProps> = ({
             </div>
           </div>
         </div>
+        ) : (
+        <div className="rounded-2xl bg-white/90 backdrop-blur-md p-6 border border-slate-100 shadow-sm flex flex-col gap-5">
+          <div className="flex items-center gap-2">
+            <Volume2 className="w-5 h-5 text-tm-maroon" />
+            <span className="text-xs font-mono font-bold text-tm-maroon uppercase tracking-widest">Summer FM • Daily Education</span>
+          </div>
+          <div className="bg-tm-blue/5 rounded-lg p-4 border border-tm-blue/10">
+            <p className="text-[11px] font-mono font-bold text-tm-blue uppercase tracking-wider mb-1">Word of the Day</p>
+            <p className="text-xl font-bold text-slate-800">{meeting.wordOfDay}</p>
+            <p className="text-sm text-slate-600 mt-1 leading-relaxed">{meeting.wordOfDayDefinition}</p>
+          </div>
+          <div className="bg-tm-maroon/5 rounded-lg p-4 border border-tm-maroon/10">
+            <p className="text-[11px] font-mono font-bold text-tm-maroon uppercase tracking-wider mb-1">Phrase of the Day</p>
+            <p className="text-xl font-bold text-slate-800">"{meeting.phraseOfDay}"</p>
+            <p className="text-sm text-slate-600 mt-1 leading-relaxed">{meeting.phraseOfDayMeaning}</p>
+          </div>
+          <div className="bg-amber-50 rounded-lg p-4 border border-amber-200/40">
+            <p className="text-[11px] font-mono font-bold text-amber-700 uppercase tracking-wider mb-1">Meeting Theme</p>
+            <p className="text-lg font-bold text-slate-800">"{meeting.theme}"</p>
+          </div>
+        </div>
+        )}
       </div>
 
-      {/* Crawling Marquee educational banner at bottom */}
+      {/* Crawling Marquee educational banner at bottom (only when timer visible) */}
+      {showTimer && (
       <div className="relative overflow-hidden bg-white/80 backdrop-blur-md rounded-xl py-3 px-6 border border-slate-100 shadow-sm flex flex-col md:flex-row items-center gap-4">
-        {/* Banner Label */}
         <div className="flex items-center gap-2 shrink-0 bg-tm-maroon text-white text-xs font-semibold px-3 py-1.5 rounded-lg border border-tm-maroon/20 font-display uppercase tracking-wider z-15 shadow-sm">
           <Volume2 className="w-3.5 h-3.5 animate-bounce" />
-          <span>Daily Education</span>
+          <span>Summer FM • Daily Education</span>
         </div>
-
-        {/* Moving Text container */}
         <div className="w-full overflow-hidden whitespace-nowrap py-1 relative">
           <div className="inline-block animate-[marquee_25s_linear_infinite] hover:[animation-play-state:paused] text-sm text-slate-700 cursor-help space-x-12">
             <span>
@@ -372,8 +517,6 @@ export const StageView: React.FC<StageViewProps> = ({
             </span>
           </div>
         </div>
-
-        {/* Dynamic Tailwind keyframe injection for Marquee since custom animations might not be compiled directly */}
         <style>{`
           @keyframes marquee {
             0% { transform: translate3d(100%, 0, 0); }
@@ -381,6 +524,7 @@ export const StageView: React.FC<StageViewProps> = ({
           }
         `}</style>
       </div>
+      )}
 
       {/* Attendance & Immediate Guest List Tracker */}
       <div className="bg-white rounded-xl p-6 border border-slate-100 shadow-sm">
@@ -403,8 +547,34 @@ export const StageView: React.FC<StageViewProps> = ({
               <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest bg-slate-250 border border-slate-200/50 px-1 hover:bg-slate-300">
                 Guest
               </span>
+              <button
+                type="button"
+                onClick={() => setMeeting(prev => ({ ...prev, guestList: prev.guestList.filter((_, i) => i !== idx) }))}
+                className="text-red-400 hover:text-red-600 ml-1 cursor-pointer"
+                title="Remove guest"
+              >&times;</button>
             </div>
           ))}
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              value={newGuest}
+              onChange={e => setNewGuest(e.target.value)}
+              placeholder="Add guest name..."
+              className="text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white w-36 outline-none focus:border-tm-maroon"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const trimmed = newGuest.trim();
+                if (trimmed) {
+                  setMeeting(prev => ({ ...prev, guestList: [...prev.guestList, trimmed] }));
+                  setNewGuest("");
+                }
+              }}
+              className="text-xs bg-tm-maroon text-white px-2.5 py-1.5 rounded-lg hover:bg-tm-maroon/90 transition-colors font-medium cursor-pointer"
+            >Add</button>
+          </div>
           <div className="text-xs text-slate-400 italic flex items-center pl-1 font-sans">
             Guests are fully eligible to join Table Topics segment and ballot box polls!
           </div>

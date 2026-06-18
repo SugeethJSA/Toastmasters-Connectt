@@ -19,8 +19,6 @@ export const Governance: React.FC<GovernanceProps> = ({
   onApproveCurrentMOM
 }) => {
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
-  const [securityPassword, setSecurityPassword] = useState("");
-  const [saaAuthenticated, setSaaAuthenticated] = useState(false);
   const [customQuestion, setCustomQuestion] = useState("");
   const [customOptionsText, setCustomOptionsText] = useState("");
 
@@ -55,15 +53,7 @@ export const Governance: React.FC<GovernanceProps> = ({
     alert("Your ballistic ballot value has been recorded into SAA audit vault!");
   };
 
-  const handleAuthenticateSAA = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (securityPassword === "bylaws124") {
-      setSaaAuthenticated(true);
-      setSecurityPassword("");
-    } else {
-      alert("Invalid SAA passcode. (Hint for preview dev validation: 'bylaws124')");
-    }
-  };
+
 
   const handleDeployCustomPoll = (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,7 +141,12 @@ export const Governance: React.FC<GovernanceProps> = ({
                   <div>
                     <div className="flex justify-between items-center bg-slate-100 px-2 py-1 rounded">
                       <span className="text-[9px] font-mono uppercase tracking-widest text-slate-500 font-bold leading-none">
-                        {poll.type.replace("_", " ")}
+                        {poll.type === "BEST_SPEAKER" ? "🏆 Best Speaker" :
+                         poll.type === "BEST_TABLE_TOPICS" ? "🎤 Best Table Topics" :
+                         poll.type === "BEST_EVALUATOR" ? "📋 Best Evaluator" :
+                         poll.type === "BEST_ROLE_PLAYER" ? "🎭 Best Role Player" :
+                         poll.type === "BEST_TAG_TEAM" ? "🤝 Best Tag Team" :
+                         poll.type.replace("_", " ")}
                       </span>
                       {!poll.active && (
                         <span className="text-[9px] text-rose-500 font-mono font-bold uppercase leading-none">Closed</span>
@@ -234,138 +229,111 @@ export const Governance: React.FC<GovernanceProps> = ({
               <Shield className="w-5 h-5 text-tm-dark shrink-0" /> Administrative SAA Cockpit
             </h3>
 
-            {!saaAuthenticated ? (
-              <form onSubmit={handleAuthenticateSAA} className="space-y-4">
-                <p className="text-xs text-slate-500 leading-normal">
-                  Administrative overrides require the official SAA bylaws secret password (use <strong className="text-tm-maroon font-mono">bylaws124</strong> to validate).
-                </p>
-                <div className="space-y-1.5 font-sans">
-                  <label className="text-slate-500 font-bold text-[10px] uppercase">SAA Password</label>
-                  <input
-                    type="password"
-                    placeholder="Enter authentication passcode"
-                    value={securityPassword}
-                    onChange={(e) => setSecurityPassword(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg bg-slate-50 text-slate-700 focus:bg-white outline-none focus:border-tm-blue font-sans text-xs"
-                    required
-                  />
+            <div className="space-y-6">
+              {/* Authenticated feedback banner */}
+              <div className="bg-emerald-50 text-emerald-800 border border-emerald-200.40 p-3.5 rounded-lg flex items-center gap-2.5 font-sans">
+                <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+                <div>
+                  <strong className="block text-xs uppercase text-emerald-950 font-display">Authenticated SAA Panel</strong>
+                  <p className="text-[10px] mt-0.5">Control registers, unlock ballot parameters, reset vote files</p>
                 </div>
-                <button
-                  type="submit"
-                  className="w-full py-2 bg-tm-blue hover:bg-tm-dark text-white rounded font-bold font-display uppercase tracking-widest text-[10px] cursor-pointer shadow-sm"
-                >
-                  Confirm Audited Role Access
-                </button>
-              </form>
-            ) : (
-              <div className="space-y-6">
-                
-                {/* Authenticated feedback banner */}
-                <div className="bg-emerald-50 text-emerald-800 border border-emerald-200.40 p-3.5 rounded-lg flex items-center gap-2.5 font-sans">
-                  <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
-                  <div>
-                    <strong className="block text-xs uppercase text-emerald-950 font-display">Authenticated SAA Panel</strong>
-                    <p className="text-[10px] mt-0.5">Control registers, unlock ballot parameters, reset vote files</p>
-                  </div>
-                </div>
-
-                {/* SAA Control Actions */}
-                <div className="space-y-3 pt-2">
-                  <h4 className="font-semibold text-slate-600 font-display uppercase text-[10px] tracking-widest pl-0.5">Quick Actions Parameters</h4>
-
-                  <button
-                    onClick={handleResetPolls}
-                    className="w-full flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-semibold hover:bg-slate-100 cursor-pointer"
-                  >
-                    <span>Reset All Voter Ballot Tallies</span>
-                    <RefreshCw className="w-4 h-4 text-slate-400" />
-                  </button>
-
-                  <button
-                    onClick={onApproveCurrentMOM}
-                    className="w-full flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-semibold hover:bg-slate-100 cursor-pointer text-left"
-                  >
-                    <div>
-                      <span>Seal In-Progress Meeting Record</span>
-                      <p className="text-[9px] text-slate-400 font-medium normal-case mt-0.5">Approve and export to Past Archives index.</p>
-                    </div>
-                    <CheckCircle className="w-4 h-4 text-slate-400" />
-                  </button>
-                </div>
-
-                {/* Deploy Custom Poll Form */}
-                <form onSubmit={handleDeployCustomPoll} className="space-y-3 pt-4 border-t border-slate-150">
-                  <h4 className="font-semibold font-display uppercase text-[10px] tracking-widest text-tm-maroon flex items-center gap-1">
-                    <Plus className="w-4 h-4 text-tm-maroon" /> Deploy Custom Topic/Question
-                  </h4>
-
-                  <div className="space-y-3 font-sans">
-                    <div className="space-y-1">
-                      <label className="text-slate-500 font-medium text-[10px]">What is the custom ballot query?</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Rate current meeting theme pacing"
-                        value={customQuestion}
-                        onChange={(e) => setCustomQuestion(e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg outline-none focus:border-tm-blue bg-white"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-slate-500 font-medium text-[10px]">Options (Comma-separated list)</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Excellent, Standard, Sluggish, Overtime"
-                        value={customOptionsText}
-                        onChange={(e) => setCustomOptionsText(e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg outline-none focus:border-tm-blue bg-white"
-                        required
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="w-full py-2 bg-tm-maroon hover:bg-tm-maroon/90 text-white rounded font-display uppercase tracking-widest text-[9px] cursor-pointer shadow-sm"
-                    >
-                      Broadcast Custom Voter Poll
-                    </button>
-                  </div>
-                </form>
-
-                {/* Delete / Tweak Active boxes */}
-                <div className="space-y-2.5 pt-4 border-t border-slate-150">
-                  <h4 className="font-semibold text-slate-600 font-display uppercase text-[10px] tracking-widest">Toggle SAA State parameters</h4>
-                  
-                  <div className="space-y-2 max-h-[220px] overflow-y-auto">
-                    {polls.map((p) => (
-                      <div key={p.id} className="flex justify-between items-center p-2 bg-slate-50 border border-slate-200/50 rounded-lg">
-                        <span className="font-semibold text-slate-700 truncate max-w-[130px]">{p.question}</span>
-                        
-                        <div className="flex gap-1 shrink-0">
-                          <button
-                            onClick={() => handleTogglePollState(p.id)}
-                            className={`p-1 text-[9px] rounded font-mono uppercase font-bold cursor-pointer ${
-                              p.active ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
-                            }`}
-                          >
-                            {p.active ? "Active" : "Closed"}
-                          </button>
-                          
-                          <button
-                            onClick={() => handleDeletePoll(p.id)}
-                            className="p-1 bg-slate-250 border border-slate-200/50 rounded text-rose-600 hover:bg-slate-350 cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
               </div>
-            )}
+
+              {/* SAA Control Actions */}
+              <div className="space-y-3 pt-2">
+                <h4 className="font-semibold text-slate-600 font-display uppercase text-[10px] tracking-widest pl-0.5">Quick Actions Parameters</h4>
+
+                <button
+                  onClick={handleResetPolls}
+                  className="w-full flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-semibold hover:bg-slate-100 cursor-pointer"
+                >
+                  <span>Reset All Voter Ballot Tallies</span>
+                  <RefreshCw className="w-4 h-4 text-slate-400" />
+                </button>
+
+                <button
+                  onClick={onApproveCurrentMOM}
+                  className="w-full flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-semibold hover:bg-slate-100 cursor-pointer text-left"
+                >
+                  <div>
+                    <span>Seal In-Progress Meeting Record</span>
+                    <p className="text-[9px] text-slate-400 font-medium normal-case mt-0.5">Approve and export to Past Archives index.</p>
+                  </div>
+                  <CheckCircle className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+
+              {/* Deploy Custom Poll Form */}
+              <form onSubmit={handleDeployCustomPoll} className="space-y-3 pt-4 border-t border-slate-150">
+                <h4 className="font-semibold font-display uppercase text-[10px] tracking-widest text-tm-maroon flex items-center gap-1">
+                  <Plus className="w-4 h-4 text-tm-maroon" /> Deploy Custom Topic/Question
+                </h4>
+
+                <div className="space-y-3 font-sans">
+                  <div className="space-y-1">
+                    <label className="text-slate-500 font-medium text-[10px]">What is the custom ballot query?</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Rate current meeting theme pacing"
+                      value={customQuestion}
+                      onChange={(e) => setCustomQuestion(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg outline-none focus:border-tm-blue bg-white"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-slate-500 font-medium text-[10px]">Options (Comma-separated list)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Excellent, Standard, Sluggish, Overtime"
+                      value={customOptionsText}
+                      onChange={(e) => setCustomOptionsText(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg outline-none focus:border-tm-blue bg-white"
+                      required
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-2 bg-tm-maroon hover:bg-tm-maroon/90 text-white rounded font-display uppercase tracking-widest text-[9px] cursor-pointer shadow-sm"
+                  >
+                    Broadcast Custom Voter Poll
+                  </button>
+                </div>
+              </form>
+
+              {/* Delete / Tweak Active boxes */}
+              <div className="space-y-2.5 pt-4 border-t border-slate-150">
+                <h4 className="font-semibold text-slate-600 font-display uppercase text-[10px] tracking-widest">Toggle SAA State parameters</h4>
+                
+                <div className="space-y-2 max-h-[220px] overflow-y-auto">
+                  {polls.map((p) => (
+                    <div key={p.id} className="flex justify-between items-center p-2 bg-slate-50 border border-slate-200/50 rounded-lg">
+                      <span className="font-semibold text-slate-700 truncate max-w-[130px]">{p.question}</span>
+                      
+                      <div className="flex gap-1 shrink-0">
+                        <button
+                          onClick={() => handleTogglePollState(p.id)}
+                          className={`p-1 text-[9px] rounded font-mono uppercase font-bold cursor-pointer ${
+                            p.active ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+                          }`}
+                        >
+                          {p.active ? "Active" : "Closed"}
+                        </button>
+                        
+                        <button
+                          onClick={() => handleDeletePoll(p.id)}
+                          className="p-1 bg-slate-250 border border-slate-200/50 rounded text-rose-600 hover:bg-slate-350 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
 
         </div>

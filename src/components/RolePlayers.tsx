@@ -7,6 +7,7 @@ import {
 
 interface RolePlayersProps {
   meeting: Meeting;
+  currentUser: { name: string; role: string } | null;
   timerLogs: TimerLog[];
   ahLogs: AhCounterLog[];
   grammarianLogs: GrammarianUse[];
@@ -38,10 +39,14 @@ interface RolePlayersProps {
     yellowSeconds: number;
     maxSeconds: number;
   }>>;
+  sendTimerControl: (action: "start" | "pause" | "reset" | "config", overrides?: any) => void;
+  stageTopic: { id: string; prompt: string; theme: string; assignedSpeaker?: string } | null;
+  sendTopicControl: (action: "show" | "hide" | "clear", topicData?: any) => void;
 }
 
 export const RolePlayers: React.FC<RolePlayersProps> = ({
   meeting,
+  currentUser,
   timerLogs,
   ahLogs,
   grammarianLogs,
@@ -51,12 +56,31 @@ export const RolePlayers: React.FC<RolePlayersProps> = ({
   onUpdateGrammarianLogs,
   onUpdateTopicsPrompts,
   liveTimerState,
-  setLiveTimerState
+  setLiveTimerState,
+  sendTimerControl,
+  stageTopic,
+  sendTopicControl
 }) => {
-  const [activeTab, setActiveTab] = useState<"timer" | "ah" | "grammarian" | "topics">("timer");
+  const name = currentUser?.name || "";
+  const isAssignedTimer = meeting.timer === name;
+  const isAssignedAh = meeting.ahCounter === name;
+  const isAssignedGrammarian = meeting.grammarian === name;
+  const isAssignedTopics = meeting.tableTopicsMaster === name;
+  const isAssignedSpeaker = meeting.timeline.some(t => t.segment === "PREPARED_SPEECH" && t.player === name);
+  const isAdminOrOfficer = currentUser?.role === "admin" || currentUser?.role === "officer";
+
+  const tabs: { key: "timer" | "ah" | "grammarian" | "topics"; label: string; icon: string }[] = [];
+  if (isAdminOrOfficer || isAssignedTimer || isAssignedSpeaker) tabs.push({ key: "timer", label: "Timer Player Desk", icon: "⏱️" });
+  if (isAdminOrOfficer || isAssignedAh) tabs.push({ key: "ah", label: "Ah-Counter Clickers", icon: "👥" });
+  if (isAdminOrOfficer || isAssignedGrammarian) tabs.push({ key: "grammarian", label: "Grammarian Tracker", icon: "✍️" });
+  if (isAdminOrOfficer || isAssignedTopics) tabs.push({ key: "topics", label: "Impromptu Topics Deck", icon: "🎯" });
+
+  const firstSpeaker = meeting.timeline.find(t => t.player)?.player || meeting.timer || "";
+
+  const [activeTab, setActiveTab] = useState<"timer" | "ah" | "grammarian" | "topics">(tabs[0]?.key || "timer");
 
   // --- TIMER STATE CONTROL ---
-  const [timerSpeaker, setTimerSpeaker] = useState("Audrey Chen");
+  const [timerSpeaker, setTimerSpeaker] = useState(meeting.timer || firstSpeaker);
   const [timerRole, setTimerRole] = useState("Prepared Speaker");
   const [timerSegment, setTimerSegment] = useState<MeetingSegment>(MeetingSegment.PREPARED_SPEECH);
   const [minMin, setMinMin] = useState(5); // green card limit minutes
@@ -101,10 +125,12 @@ export const RolePlayers: React.FC<RolePlayersProps> = ({
       yellowSeconds: targetMin * 60,
       maxSeconds: maxMin * 60
     }));
+    sendTimerControl("start", { speaker: timerSpeaker, role: timerRole, minSeconds: minMin * 60, yellowSeconds: targetMin * 60, maxSeconds: maxMin * 60 });
   };
 
   const pauseTimer = () => {
     setLiveTimerState(prev => ({ ...prev, isRunning: false }));
+    sendTimerControl("pause");
   };
 
   const resetTimer = () => {
@@ -119,6 +145,7 @@ export const RolePlayers: React.FC<RolePlayersProps> = ({
       yellowSeconds: targetMin * 60,
       maxSeconds: maxMin * 60
     }));
+    sendTimerControl("reset", { speaker: timerSpeaker, role: timerRole, minSeconds: minMin * 60, yellowSeconds: targetMin * 60, maxSeconds: maxMin * 60 });
   };
 
   const formatTimerString = (secs: number) => {
@@ -174,7 +201,7 @@ export const RolePlayers: React.FC<RolePlayersProps> = ({
   };
 
   const [newAhNotes, setNewAhNotes] = useState("");
-  const [selectedAhSpeaker, setSelectedAhSpeaker] = useState("Audrey Chen");
+  const [selectedAhSpeaker, setSelectedAhSpeaker] = useState(firstSpeaker);
   const handleSaveAhNotes = () => {
     const existingLog = ahLogs.find(log => log.speaker === selectedAhSpeaker);
     if (existingLog) {
@@ -190,7 +217,7 @@ export const RolePlayers: React.FC<RolePlayersProps> = ({
   };
 
   // --- GRAMMARIAN COCKPIT STATE ---
-  const [grammarianSelectedSpeaker, setGrammarianSelectedSpeaker] = useState("Audrey Chen");
+  const [grammarianSelectedSpeaker, setGrammarianSelectedSpeaker] = useState(firstSpeaker);
   const [elegantWordForm, setElegantWordForm] = useState("");
   const [grammarianMistakeForm, setGrammarianMistakeForm] = useState("");
 
@@ -290,9 +317,11 @@ export const RolePlayers: React.FC<RolePlayersProps> = ({
   const handleCallAIPrompts = async () => {
     setAiPromptsLoading(true);
     try {
-      const res = await fetch("/api/gemini/generate-topics", {
+      const API_BASE = import.meta.env.VITE_API_URL || "";
+      const res = await fetch(`${API_BASE}/api/gemini/generate-topics`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           theme: meeting.theme,
           count: aiPromptsCount
@@ -327,6 +356,7 @@ export const RolePlayers: React.FC<RolePlayersProps> = ({
   };
 
   const handleTogglePromptStart = (id: string) => {
+    const p = topicsPrompts.find(t => t.id === id);
     const updated = topicsPrompts.map(p => {
       if (p.id === id) {
         return { ...p, started: !p.started };
@@ -334,6 +364,18 @@ export const RolePlayers: React.FC<RolePlayersProps> = ({
       return p;
     });
     onUpdateTopicsPrompts(updated);
+    if (p && !p.started) {
+      sendTopicControl("show", { id: p.id, prompt: p.prompt, theme: p.theme, assignedSpeaker: p.assignedSpeaker });
+    } else if (p?.started) {
+      sendTopicControl("hide");
+    }
+  };
+
+  const handleDeletePrompt = (id: string) => {
+    onUpdateTopicsPrompts(topicsPrompts.filter(p => p.id !== id));
+    if (stageTopic?.id === id) {
+      sendTopicControl("hide");
+    }
   };
 
   const handleAssignSpeaker = (id: string, speakerName: string) => {
@@ -359,64 +401,59 @@ export const RolePlayers: React.FC<RolePlayersProps> = ({
 
   const [customTopicInput, setCustomTopicInput] = useState("");
 
-  const ALL_PARTICIPANTS = [
+  // Dynamically build participant list from meeting data + registered users
+  const [registeredUsers, setRegisteredUsers] = useState<{ name: string; email: string }[]>([]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const API_BASE = import.meta.env.VITE_API_URL || "";
+    fetch(`${API_BASE}/api/users`, { signal: controller.signal })
+      .then(res => res.json())
+      .then(data => {
+        if (data.users) setRegisteredUsers(data.users.map((u: any) => ({ name: u.name, email: u.email })));
+      })
+      .catch(() => {})
+    return () => controller.abort();
+  }, []);
+
+  const registeredNames = registeredUsers.map(u => u.name);
+
+  // All unique participants (for context, not directly used in dropdowns)
+  const allParticipants = Array.from(new Set([
+    ...registeredNames,
+    ...meeting.timeline.map(t => t.player),
+    meeting.toastmasterOfTheDay,
+    meeting.timer,
+    meeting.ahCounter,
+    meeting.grammarian,
+    meeting.tableTopicsMaster,
+    meeting.generalEvaluator,
     ...meeting.guestList.map(g => `${g} (Guest)`),
-    "Sarah Jenkins",
-    "Audrey Chen",
-    "David Vance",
-    "Helen Ramirez",
-    "Pranav Patel",
-    "Jameson Vance",
-    "Theresa May",
-    "Marcus Brody",
-    "Grace Brewster"
-  ];
+  ])).filter(Boolean);
+
+  // Simply use all participants for the dropdowns so any registered user can be selected!
+  const timerParticipants = allParticipants;
+  const speakerParticipants = allParticipants;
+  const topicsParticipants = allParticipants;
 
   return (
     <div id="role-players-integrated-dashboard" className="space-y-6">
       
       {/* Role Tabs Nav Bar */}
       <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100 rounded-xl border border-slate-200/40">
-        <button
-          onClick={() => setActiveTab("timer")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold font-display tracking-wider uppercase transition-all cursor-pointer ${
-            activeTab === "timer"
-              ? "bg-[#004165] text-white shadow"
-              : "text-slate-600 hover:bg-white/50"
-          }`}
-        >
-          ⏱️ Timer Player Desk
-        </button>
-        <button
-          onClick={() => setActiveTab("ah")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold font-display tracking-wider uppercase transition-all cursor-pointer ${
-            activeTab === "ah"
-              ? "bg-[#004165] text-white shadow"
-              : "text-slate-600 hover:bg-white/50"
-          }`}
-        >
-          👥 Ah-Counter Clickers
-        </button>
-        <button
-          onClick={() => setActiveTab("grammarian")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold font-display tracking-wider uppercase transition-all cursor-pointer ${
-            activeTab === "grammarian"
-              ? "bg-[#004165] text-white shadow"
-              : "text-slate-600 hover:bg-white/50"
-          }`}
-        >
-          ✍️ Grammarian Tracker
-        </button>
-        <button
-          onClick={() => setActiveTab("topics")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold font-display tracking-wider uppercase transition-all cursor-pointer ${
-            activeTab === "topics"
-              ? "bg-[#004165] text-white shadow"
-              : "text-slate-600 hover:bg-white/50"
-          }`}
-        >
-          🎯 Impromptu Topics Deck
-        </button>
+        {tabs.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold font-display tracking-wider uppercase transition-all cursor-pointer ${
+              activeTab === tab.key
+                ? "bg-[#004165] text-white shadow"
+                : "text-slate-600 hover:bg-white/50"
+            }`}
+          >
+            {tab.icon} {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* RENDER ACTIVE TAB COCKPIT */}
@@ -448,7 +485,7 @@ export const RolePlayers: React.FC<RolePlayersProps> = ({
                     onChange={(e) => setTimerSpeaker(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white"
                   >
-                    {ALL_PARTICIPANTS.map((p, i) => (
+                    {timerParticipants.map((p, i) => (
                       <option key={i} value={p}>{p}</option>
                     ))}
                   </select>
@@ -573,7 +610,7 @@ export const RolePlayers: React.FC<RolePlayersProps> = ({
                     onChange={(e) => setSelectedAhSpeaker(e.target.value)}
                     className="px-2 py-1.5 rounded border border-slate-200 font-sans"
                   >
-                    {ALL_PARTICIPANTS.map((p, i) => (
+                    {speakerParticipants.map((p, i) => (
                       <option key={i} value={p}>{p}</option>
                     ))}
                   </select>
@@ -611,7 +648,7 @@ export const RolePlayers: React.FC<RolePlayersProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-                  {ALL_PARTICIPANTS.map((speaker, idx) => {
+                  {speakerParticipants.map((speaker, idx) => {
                     const log = ahLogs.find(l => l.speaker === speaker) || {
                       counts: { ah: 0, um: 0, er: 0, well: 0, so: 0, repeats: 0 },
                       notes: ""
@@ -704,7 +741,7 @@ export const RolePlayers: React.FC<RolePlayersProps> = ({
                     onChange={(e) => setGrammarianSelectedSpeaker(e.target.value)}
                     className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white"
                   >
-                    {ALL_PARTICIPANTS.map((p, i) => (
+                    {speakerParticipants.map((p, i) => (
                       <option key={i} value={p}>{p}</option>
                     ))}
                   </select>
@@ -936,7 +973,7 @@ export const RolePlayers: React.FC<RolePlayersProps> = ({
                               defaultValue=""
                             >
                               <option value="" disabled>Select Participant</option>
-                              {ALL_PARTICIPANTS.map((member, m) => (
+                              {topicsParticipants.map((member, m) => (
                                 <option key={m} value={member}>{member}</option>
                               ))}
                             </select>
@@ -952,8 +989,14 @@ export const RolePlayers: React.FC<RolePlayersProps> = ({
                               : "bg-slate-200/80 text-slate-600 hover:bg-slate-350"
                           }`}
                         >
-                          {p.started ? "On State / Started" : "Draw to Stage"}
+                          {p.started ? "On Stage" : "Draw to Stage"}
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePrompt(p.id)}
+                          className="text-[10px] text-red-400 hover:text-red-600 ml-1 cursor-pointer font-bold"
+                          title="Delete prompt"
+                        >&times;</button>
                       </div>
                     </div>
                   ))}

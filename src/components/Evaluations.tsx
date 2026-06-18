@@ -1,38 +1,76 @@
 import React, { useState } from "react";
-import { EvaluationItem } from "../types";
-import { Plus, Star, Award, CheckCircle2, FileText, BarChart3, HelpCircle, CornerDownRight } from "lucide-react";
+import { EvaluationItem, Meeting } from "../types";
+import { Plus, Star, Award, CheckCircle2, FileText, BarChart3, HelpCircle, CornerDownRight, Download, Trash2 } from "lucide-react";
 
 interface EvaluationsProps {
+  meeting: Meeting;
+  currentUser: { name: string; role: string } | null;
   evaluations: EvaluationItem[];
   onAddEvaluation: (item: EvaluationItem) => void;
+  onUpdateEvaluations?: (evals: EvaluationItem[]) => void;
 }
 
 export const Evaluations: React.FC<EvaluationsProps> = ({
   evaluations,
   onAddEvaluation,
+  onUpdateEvaluations,
+  meeting,
+  currentUser,
 }) => {
+  // Derive default speaker from timeline
+  const timelineSpeakers = meeting.timeline.filter(item => item.segment === "PREPARED_SPEECH").map(item => item.player).filter(Boolean);
+  const defaultSpeaker = timelineSpeakers[0] || "Audrey Chen";
+  const defaultSpeechTitle = meeting.title || "The Art of Slowing Down";
+
   // Local form state
-  const [evaluator, setEvaluator] = useState("Helen Ramirez");
-  const [speaker, setSpeaker] = useState("Audrey Chen");
-  const [speechTitle, setSpeechTitle] = useState("The Art of Slowing Down");
+  const [evaluator, setEvaluator] = useState(currentUser?.name || "Helen Ramirez");
+  const [speaker, setSpeaker] = useState(defaultSpeaker);
+  const [speechTitle, setSpeechTitle] = useState(defaultSpeechTitle);
   const [projectLevel, setProjectLevel] = useState("Level 1: Evaluation and Feedback");
   
   // Custom 1-5 competency ratings
-  const [clarity, setClarity] = useState(4);
-  const [vocalVariety, setVocalVariety] = useState(3);
-  const [eyeContact, setEyeContact] = useState(5);
-  const [gestures, setGestures] = useState(4);
-  const [audienceAwareness, setAudienceAwareness] = useState(4);
-  const [comfortLevel, setComfortLevel] = useState(4);
-  const [subjectMatter, setSubjectMatter] = useState(5);
+  const [dynamicCompetencies, setDynamicCompetencies] = useState([
+    { id: "c1", label: "Clarity & articulation", val: 4 },
+    { id: "c2", label: "Vocal variety & pauses", val: 3 },
+    { id: "c3", label: "Direct eye contact", val: 5 },
+    { id: "c4", label: "Body language & gestures", val: 4 },
+    { id: "c5", label: "Audience awareness", val: 4 },
+    { id: "c6", label: "Comfort level & pacing", val: 4 },
+    { id: "c7", label: "Subject matter understanding", val: 5 },
+  ]);
 
   const [positives, setPositives] = useState("");
   const [improvements, setImprovements] = useState("");
   const [summarizedFeedback, setSummarizedFeedback] = useState("");
 
+  // Filter evaluations to only show relevant ones
+  const visibleEvaluations = evaluations.filter(ev => 
+    currentUser?.role === 'admin' || 
+    currentUser?.role === 'officer' || 
+    ev.speaker === currentUser?.name || 
+    ev.evaluator === currentUser?.name ||
+    meeting.generalEvaluator === currentUser?.name
+  );
+
+  const handleAddMetric = () => {
+    const name = prompt("Enter new evaluation metric name (e.g., 'Use of Props'):");
+    if (name?.trim()) {
+      setDynamicCompetencies([...dynamicCompetencies, { id: `custom_${Date.now()}`, label: name.trim(), val: 3 }]);
+    }
+  };
+
+  const handleRemoveMetric = (id: string) => {
+    setDynamicCompetencies(dynamicCompetencies.filter(c => c.id !== id));
+  };
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!positives.trim() || !summarizedFeedback.trim()) return;
+
+    const scoresObj: any = {};
+    dynamicCompetencies.forEach(c => {
+      scoresObj[c.label] = c.val;
+    });
 
     const newEval: EvaluationItem = {
       id: "eval-" + Date.now(),
@@ -40,15 +78,7 @@ export const Evaluations: React.FC<EvaluationsProps> = ({
       speaker,
       speechTitle,
       projectLevel,
-      scores: {
-        clarity,
-        vocalVariety,
-        eyeContact,
-        gestures,
-        audienceAwareness,
-        comfortLevel,
-        subjectMatter,
-      },
+      scores: scoresObj,
       positives,
       improvements,
       summarizedFeedback,
@@ -61,6 +91,16 @@ export const Evaluations: React.FC<EvaluationsProps> = ({
     setPositives("");
     setImprovements("");
     setSummarizedFeedback("");
+  };
+
+  const downloadReport = (item: EvaluationItem) => {
+    const content = `TOASTMASTERS EVALUATION REPORT\n=================================\nSpeaker: ${item.speaker}\nEvaluator: ${item.evaluator}\nSpeech Title: ${item.speechTitle}\nProject Level: ${item.projectLevel}\nDate: ${item.submittedAt || new Date().toLocaleDateString()}\n\n--- SCORES (Out of 5) ---\n${Object.entries(item.scores).map(([k, v]) => `${k}: ${v}/5`).join('\n')}\n\n--- QUALITATIVE FEEDBACK ---\nEXCELLED:\n${item.positives}\n\nWORK ON:\n${item.improvements}\n\nCHALLENGE:\n${item.summarizedFeedback}\n`;
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Evaluation_${item.speaker.replace(/\\s+/g, "_")}.txt`;
+    a.click();
   };
 
   // Core Competencies Ratings Matrix
@@ -103,28 +143,22 @@ export const Evaluations: React.FC<EvaluationsProps> = ({
   const applyTemplate = (t: typeof templates[0]) => {
     setSpeechTitle(t.speechTitle);
     setProjectLevel(t.projectLevel);
-    setClarity(t.scores.clarity);
-    setVocalVariety(t.scores.vocalVariety);
-    setEyeContact(t.scores.eyeContact);
-    setGestures(t.scores.gestures);
-    setAudienceAwareness(t.scores.audienceAwareness);
-    setComfortLevel(t.scores.comfortLevel);
-    setSubjectMatter(t.scores.subjectMatter);
+    
+    setDynamicCompetencies([
+      { id: "c1", label: "Clarity & articulation", val: t.scores.clarity },
+      { id: "c2", label: "Vocal variety & pauses", val: t.scores.vocalVariety },
+      { id: "c3", label: "Direct eye contact", val: t.scores.eyeContact },
+      { id: "c4", label: "Body language & gestures", val: t.scores.gestures },
+      { id: "c5", label: "Audience awareness", val: t.scores.audienceAwareness },
+      { id: "c6", label: "Comfort level & pacing", val: t.scores.comfortLevel },
+      { id: "c7", label: "Subject matter understanding", val: t.scores.subjectMatter },
+    ]);
+
     setPositives(t.positives);
     setImprovements(t.improvements);
     setSummarizedFeedback(t.challenge);
     alert(`Successfully applied "${t.title}" evaluation template parameters into peer scorecard below!`);
   };
-
-  const COMPETENCIES = [
-    { key: "clarity", label: "Clarity & articulation", val: clarity, set: setClarity },
-    { key: "vocalVariety", label: "Vocal variety & pauses", val: vocalVariety, set: setVocalVariety },
-    { key: "eyeContact", label: "Direct eye contact", val: eyeContact, set: setEyeContact },
-    { key: "gestures", label: "Body language & gestures", val: gestures, set: setGestures },
-    { key: "audienceAwareness", label: "Audience awareness", val: audienceAwareness, set: setAudienceAwareness },
-    { key: "comfortLevel", label: "Comfort level & pacing", val: comfortLevel, set: setComfortLevel },
-    { key: "subjectMatter", label: "Subject matter understanding", val: subjectMatter, set: setSubjectMatter },
-  ];
 
   return (
     <div id="pathways-evaluations-system" className="space-y-6">
@@ -205,14 +239,16 @@ export const Evaluations: React.FC<EvaluationsProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-slate-500 font-semibold">Scheduled Speaker Name</label>
-                <input
-                  type="text"
+                <label className="text-slate-500 font-semibold">Select Scheduled Speaker</label>
+                <select
                   value={speaker}
                   onChange={(e) => setSpeaker(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none focus:border-tm-blue bg-white"
                   required
-                />
+                >
+                  {timelineSpeakers.map(sp => <option key={sp} value={sp}>{sp}</option>)}
+                  {!timelineSpeakers.includes(speaker) && <option value={speaker}>{speaker}</option>}
+                </select>
               </div>
 
               <div className="space-y-1.5">
@@ -244,14 +280,20 @@ export const Evaluations: React.FC<EvaluationsProps> = ({
 
             {/* Core Competencies Ratings Matrix */}
             <div className="space-y-4 pt-3 border-t border-slate-100">
-              <h4 className="font-semibold text-slate-800 font-display flex items-center gap-1">
-                <Award className="w-4 h-4 text-tm-maroon" /> Pathways Core Speech Competencies (Score 1 to 5)
-              </h4>
+              <div className="flex justify-between items-center">
+                <h4 className="font-semibold text-slate-800 font-display flex items-center gap-1">
+                  <Award className="w-4 h-4 text-tm-maroon" /> Dynamic Core Speech Competencies
+                </h4>
+                <button type="button" onClick={handleAddMetric} className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded font-bold uppercase tracking-wider border border-slate-200 cursor-pointer flex items-center gap-1"><Plus className="w-3 h-3"/> Add Metric</button>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {COMPETENCIES.map((comp) => (
-                  <div key={comp.key} className="flex justify-between items-center p-3 bg-slate-50/70 border border-slate-200/40 rounded-lg">
-                    <span className="font-semibold text-slate-600 font-sans">{comp.label}</span>
+                {dynamicCompetencies.map((comp, idx) => (
+                  <div key={comp.id} className="flex justify-between items-center p-3 bg-slate-50/70 border border-slate-200/40 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => handleRemoveMetric(comp.id)} className="text-slate-400 hover:text-rose-500 cursor-pointer" title="Remove metric"><Trash2 className="w-3.5 h-3.5"/></button>
+                      <span className="font-semibold text-slate-600 font-sans">{comp.label}</span>
+                    </div>
                     
                     {/* Star selection */}
                     <div className="flex items-center gap-1 shrink-0">
@@ -259,7 +301,11 @@ export const Evaluations: React.FC<EvaluationsProps> = ({
                         <button
                           key={starValue}
                           type="button"
-                          onClick={() => comp.set(starValue)}
+                          onClick={() => {
+                            const newComps = [...dynamicCompetencies];
+                            newComps[idx].val = starValue;
+                            setDynamicCompetencies(newComps);
+                          }}
                           className={`p-1 hover:scale-115 transition-transform cursor-pointer ${
                             starValue <= comp.val ? "text-amber-400" : "text-slate-300"
                           }`}
@@ -344,10 +390,10 @@ export const Evaluations: React.FC<EvaluationsProps> = ({
             </div>
 
             <div className="space-y-4 max-h-[460px] overflow-y-auto pr-1 font-sans text-xs">
-              {evaluations.length === 0 ? (
+              {visibleEvaluations.length === 0 ? (
                 <p className="text-xs text-slate-400 italic py-6 text-center">No evaluations completed yet. Be the first!</p>
               ) : (
-                evaluations.map((item) => {
+                visibleEvaluations.map((item) => {
                   // Calculate average
                   const scoresArray = Object.values(item.scores) as number[];
                   const average = (scoresArray.reduce((acc: number, val: number) => acc + val, 0) / scoresArray.length).toFixed(1);
@@ -358,7 +404,8 @@ export const Evaluations: React.FC<EvaluationsProps> = ({
                           <strong className="text-slate-800 block text-xs">{item.speaker}</strong>
                           <span className="text-[10px] text-slate-400 font-mono mt-0.5">{item.projectLevel}</span>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right flex items-center gap-2">
+                          <button onClick={() => downloadReport(item)} className="p-1 rounded bg-slate-200 text-slate-600 hover:bg-tm-blue hover:text-white transition-colors cursor-pointer" title="Download Report"><Download className="w-3 h-3"/></button>
                           <span className="bg-tm-maroon text-white font-bold font-mono px-2 py-0.5 text-[10px] rounded">
                             Avg: {average}/5.0
                           </span>
