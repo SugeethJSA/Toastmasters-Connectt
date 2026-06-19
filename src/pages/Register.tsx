@@ -1,17 +1,18 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Lock, Mail, User, Eye, EyeOff, AlertCircle, CheckCircle2 } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+import { Lock, Mail, User, Eye, EyeOff, AlertCircle, CheckCircle2, Key } from "lucide-react";
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 export const Register: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { register } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,17 +29,53 @@ export const Register: React.FC = () => {
       return;
     }
 
+    if (!inviteCode.trim()) {
+      setError("Invite code is required. Ask a club officer to provide one.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await register(email, password, name);
-      navigate("/");
+      const res = await fetch(`${API_BASE}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, name, inviteCode: inviteCode.trim().toUpperCase() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Registration failed");
+      setPending(true);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  if (pending) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50/40 px-4 py-12">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
+              <CheckCircle2 className="w-8 h-8 text-amber-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-[#002a44] font-display mb-2">Registration Submitted!</h1>
+            <p className="text-slate-600 mb-6">
+              Your account is pending approval by a club officer. You'll receive access once
+              your membership is confirmed. Please check back later to log in.
+            </p>
+            <Link
+              to="/login"
+              className="inline-block px-6 py-2.5 bg-[#002a44] hover:bg-[#053a5c] text-white font-bold rounded-lg transition-colors"
+            >
+              Go to Login
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50/40 px-4 py-12">
@@ -92,6 +129,22 @@ export const Register: React.FC = () => {
                   placeholder="you@club.org"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Invite Code</label>
+              <div className="relative">
+                <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input
+                  type="text"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                  required
+                  className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F2DF74] focus:border-transparent"
+                  placeholder="e.g. ABC12345"
+                />
+              </div>
+              <p className="mt-1 text-xs text-slate-500">Provided by your club officer</p>
             </div>
 
             <div>

@@ -31,8 +31,10 @@ export const MeetingAuthorization: React.FC<MeetingAuthorizationProps> = ({
       alert("Please verify all preceding pre-flight checklist protocols before initiating session authorization!");
       return;
     }
-    fetch("/api/meetings/sync", {
+    const API_BASE = import.meta.env.VITE_API_URL || "";
+    fetch(`${API_BASE}/api/meetings/sync`, {
       method: "POST", headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify(meeting),
     }).catch(() => {});
     onAuthorizeAndStart();
@@ -143,7 +145,7 @@ export const MeetingAuthorization: React.FC<MeetingAuthorizationProps> = ({
       </section>
 
       {/* Start activation layout trigger */}
-      <section className="pt-4 border-t border-slate-150 flex flex-col items-center space-y-4">
+      <section className="pt-4 border-t border-slate-200 flex flex-col items-center space-y-4">
         <p className="text-slate-500 text-[11px] text-center max-w-sm leading-relaxed font-sans">
           By clicking below, you authorize the formal start of this Toastmasters assembly meeting. Dashboard status transitions into "LIVE SESSION".
         </p>

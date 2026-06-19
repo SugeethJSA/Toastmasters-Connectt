@@ -6,7 +6,11 @@ interface User {
   name: string;
   role: "member" | "officer" | "admin" | "guest";
   photoUrl?: string;
+  avatarUrl?: string;
+  phone?: string;
   quote?: string;
+  clubId?: string;
+  clubName?: string;
 }
 
 interface AuthContextType {
@@ -16,6 +20,7 @@ interface AuthContextType {
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  updateUser: (updates: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -82,8 +87,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(null);
   };
 
+  const updateUser = (updates: Partial<User>) => {
+    setUser(prev => prev ? { ...prev, ...updates } : null);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, checkAuth }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, checkAuth, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

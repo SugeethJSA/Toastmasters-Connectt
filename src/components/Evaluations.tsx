@@ -398,7 +398,7 @@ export const Evaluations: React.FC<EvaluationsProps> = ({
                   const scoresArray = Object.values(item.scores) as number[];
                   const average = (scoresArray.reduce((acc: number, val: number) => acc + val, 0) / scoresArray.length).toFixed(1);
                   return (
-                    <div key={item.id} className="p-4 bg-slate-50 border border-slate-200/50 rounded-xl space-y-3.5 hover:border-slate-350 transition-colors">
+                    <div key={item.id} className="p-4 bg-slate-50 border border-slate-200/50 rounded-xl space-y-3.5 hover:border-slate-400 transition-colors">
                       <div className="flex justify-between items-start">
                         <div>
                           <strong className="text-slate-800 block text-xs">{item.speaker}</strong>
@@ -413,7 +413,7 @@ export const Evaluations: React.FC<EvaluationsProps> = ({
                       </div>
 
                       {/* Small inline visual bar chart using raw SVG/div */}
-                      <div className="space-y-2 pt-2 border-t border-slate-250/50">
+                      <div className="space-y-2 pt-2 border-t border-slate-300/50">
                         {(Object.entries(item.scores) as [string, number][]).map(([key, value]) => (
                           <div key={key} className="space-y-0.5 font-sans">
                             <div className="flex justify-between text-[10px] text-slate-500 font-medium capitalize">

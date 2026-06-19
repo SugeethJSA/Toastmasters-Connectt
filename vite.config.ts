@@ -20,7 +20,15 @@ export default defineConfig({
     hmr: process.env.DISABLE_HMR !== 'true',
     watch: process.env.DISABLE_HMR === 'true' ? null : {},
     proxy: {
-      '/api': 'http://localhost:3000',
+      '/api': {
+        target: 'http://localhost:3000',
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            if ((err as any).code === 'ECONNREFUSED' || (err as any).code === 'ENOBUFS') return;
+            console.error('proxy error', err);
+          });
+        },
+      },
       '/ws': {
         target: 'ws://localhost:3000',
         ws: true,

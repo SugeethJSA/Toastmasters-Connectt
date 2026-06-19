@@ -1,0 +1,16 @@
+{
+  "name": "Toastmasters Connect",
+  "short_name": "TM Connect",
+  "description": "Professional club meeting management platform with live timer, evaluations, and AI-powered minutes generation.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#004165",
+  "icons": [
+    {
+      "src": "/toastmasters-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

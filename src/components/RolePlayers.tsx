@@ -986,7 +986,7 @@ export const RolePlayers: React.FC<RolePlayersProps> = ({
                           className={`text-[9px] py-1 px-2 rounded-md font-bold uppercase transition-colors cursor-pointer ${
                             p.started 
                               ? "bg-emerald-100 text-emerald-800" 
-                              : "bg-slate-200/80 text-slate-600 hover:bg-slate-350"
+                              : "bg-slate-200/80 text-slate-600 hover:bg-slate-400"
                           }`}
                         >
                           {p.started ? "On Stage" : "Draw to Stage"}

@@ -16,8 +16,10 @@ export const VotePage: React.FC = () => {
   const [voted, setVoted] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
 
-  // Use polls from server meeting data if available, otherwise fallback
-  const activePolls: SAAPoll[] = meetingInfo?.polls?.length > 0 ? meetingInfo.polls : INITIAL_POLLS;
+  // Use polls from server meeting data if available, otherwise fallback to mock data
+  const activePolls: SAAPoll[] = meetingInfo?.polls
+    ? (meetingInfo.polls.length > 0 ? meetingInfo.polls : [])
+    : INITIAL_POLLS;
 
   useEffect(() => {
     const fetchMeeting = async () => {

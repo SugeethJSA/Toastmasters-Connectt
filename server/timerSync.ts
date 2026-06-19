@@ -169,3 +169,11 @@ export function attachTimerSync(server: Server) {
 
   console.log("WebSocket timer sync attached at /ws/timer");
 }
+
+export function broadcastMeetingUpdate(meeting: any) {
+  broadcast({ type: "MEETING_SYNC", meeting });
+}
+
+export function broadcastPollsUpdate(polls: any[]) {
+  broadcast({ type: "POLLS_UPDATE", polls });
+}

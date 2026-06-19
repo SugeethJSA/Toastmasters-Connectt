@@ -2,8 +2,10 @@ import React, { useState } from "react";
 import { SAAPoll, Meeting } from "../types";
 import { 
   Award, Vote, PieChart, Shield, HelpCircle, BarChart3, Plus, Trash2, 
-  Settings, Users, CheckCircle, RefreshCw, Sparkles, Sliders
+  Settings, Users, CheckCircle, RefreshCw, Sparkles, Sliders, Loader2
 } from "lucide-react";
+
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 interface GovernanceProps {
   meeting: Meeting;
@@ -21,11 +23,13 @@ export const Governance: React.FC<GovernanceProps> = ({
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [customQuestion, setCustomQuestion] = useState("");
   const [customOptionsText, setCustomOptionsText] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
-  const handleCastVote = (pollId: string) => {
+  const handleCastVote = async (pollId: string) => {
     const chosenOptionId = selectedOptions[pollId];
     if (!chosenOptionId) return;
 
+    // Optimistic local update
     const updated = polls.map((p) => {
       if (p.id === pollId) {
         return {
@@ -44,6 +48,17 @@ export const Governance: React.FC<GovernanceProps> = ({
 
     onUpdatePolls(updated);
     
+    // Sync vote with server
+    try {
+      await fetch(`${API_BASE}/api/polls/vote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ meetCode: meeting.meetCode, pollId, optionId: chosenOptionId }),
+      });
+    } catch (err) {
+      // Local state already updated; server sync is best-effort
+    }
+
     // Clear choice to show voted state feedback
     setSelectedOptions((prev) => {
       const copy = { ...prev };
@@ -51,6 +66,22 @@ export const Governance: React.FC<GovernanceProps> = ({
       return copy;
     });
     alert("Your ballistic ballot value has been recorded into SAA audit vault!");
+  };
+
+  const handleRefreshPolls = async () => {
+    if (!meeting.meetCode) return;
+    setRefreshing(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/polls/results/${meeting.meetCode}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.polls) onUpdatePolls(data.polls);
+      }
+    } catch (err) {
+      // Silent fail
+    } finally {
+      setRefreshing(false);
+    }
   };
 
 
@@ -137,7 +168,7 @@ export const Governance: React.FC<GovernanceProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {polls.map((poll) => (
-                <div key={poll.id} className="border border-slate-200/60 rounded-xl p-4.5 space-y-4 hover:border-slate-350 transition-colors flex flex-col justify-between">
+                <div key={poll.id} className="border border-slate-200/60 rounded-xl p-4.5 space-y-4 hover:border-slate-400 transition-colors flex flex-col justify-between">
                   <div>
                     <div className="flex justify-between items-center bg-slate-100 px-2 py-1 rounded">
                       <span className="text-[9px] font-mono uppercase tracking-widest text-slate-500 font-bold leading-none">
@@ -166,7 +197,7 @@ export const Governance: React.FC<GovernanceProps> = ({
                               className={`flex items-center justify-between p-2 rounded-lg border text-[11px] font-sans cursor-pointer transition-colors ${
                                 isSelected 
                                   ? "bg-tm-blue/10 border-tm-blue text-tm-blue font-semibold scale-[1.01]" 
-                                  : "bg-slate-50 border-slate-150 hover:bg-slate-100 text-slate-700"
+                                  : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700"
                               }`}
                             >
                               <span>{opt.name}</span>
@@ -231,7 +262,7 @@ export const Governance: React.FC<GovernanceProps> = ({
 
             <div className="space-y-6">
               {/* Authenticated feedback banner */}
-              <div className="bg-emerald-50 text-emerald-800 border border-emerald-200.40 p-3.5 rounded-lg flex items-center gap-2.5 font-sans">
+              <div className="bg-emerald-50 text-emerald-800 border border-emerald-200/40 p-3.5 rounded-lg flex items-center gap-2.5 font-sans">
                 <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
                 <div>
                   <strong className="block text-xs uppercase text-emerald-950 font-display">Authenticated SAA Panel</strong>
@@ -252,6 +283,15 @@ export const Governance: React.FC<GovernanceProps> = ({
                 </button>
 
                 <button
+                  onClick={handleRefreshPolls}
+                  disabled={refreshing}
+                  className="w-full flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-semibold hover:bg-slate-100 cursor-pointer disabled:opacity-50"
+                >
+                  <span>Refresh Poll Results from Server</span>
+                  {refreshing ? <Loader2 className="w-4 h-4 animate-spin text-slate-400" /> : <RefreshCw className="w-4 h-4 text-slate-400" />}
+                </button>
+
+                <button
                   onClick={onApproveCurrentMOM}
                   className="w-full flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-semibold hover:bg-slate-100 cursor-pointer text-left"
                 >
@@ -264,7 +304,7 @@ export const Governance: React.FC<GovernanceProps> = ({
               </div>
 
               {/* Deploy Custom Poll Form */}
-              <form onSubmit={handleDeployCustomPoll} className="space-y-3 pt-4 border-t border-slate-150">
+              <form onSubmit={handleDeployCustomPoll} className="space-y-3 pt-4 border-t border-slate-200">
                 <h4 className="font-semibold font-display uppercase text-[10px] tracking-widest text-tm-maroon flex items-center gap-1">
                   <Plus className="w-4 h-4 text-tm-maroon" /> Deploy Custom Topic/Question
                 </h4>
@@ -304,7 +344,7 @@ export const Governance: React.FC<GovernanceProps> = ({
               </form>
 
               {/* Delete / Tweak Active boxes */}
-              <div className="space-y-2.5 pt-4 border-t border-slate-150">
+              <div className="space-y-2.5 pt-4 border-t border-slate-200">
                 <h4 className="font-semibold text-slate-600 font-display uppercase text-[10px] tracking-widest">Toggle SAA State parameters</h4>
                 
                 <div className="space-y-2 max-h-[220px] overflow-y-auto">
@@ -324,7 +364,7 @@ export const Governance: React.FC<GovernanceProps> = ({
                         
                         <button
                           onClick={() => handleDeletePoll(p.id)}
-                          className="p-1 bg-slate-250 border border-slate-200/50 rounded text-rose-600 hover:bg-slate-350 cursor-pointer"
+                          className="p-1 bg-slate-300 border border-slate-200/50 rounded text-rose-600 hover:bg-slate-400 cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

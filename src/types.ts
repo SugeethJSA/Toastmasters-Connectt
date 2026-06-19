@@ -30,6 +30,7 @@ export interface Meeting {
   phraseOfDay: string;
   phraseOfDayMeaning: string;
   toastmasterOfTheDay: string;
+  presidingOfficer: string;
   generalEvaluator: string;
   tableTopicsMaster: string;
   timer: string;
@@ -51,6 +52,35 @@ export interface Meeting {
     yellowSeconds: number;
     maxSeconds: number;
   };
+  timerLogs?: TimerLog[];
+  ahLogs?: AhCounterLog[];
+  grammarianLogs?: GrammarianUse[];
+  evaluations?: EvaluationItem[];
+  polls?: SAAPoll[];
+  attendance?: AttendanceRecord[];
+  geReport?: GeReport;
+}
+
+export interface GeReportItem {
+  role: string;
+  rolePlayer: string;
+  rating: number;
+  positiveFeedback: string;
+  improvementFeedback: string;
+}
+
+export interface GeReport {
+  meetingRating: number;
+  overallAssessment: string;
+  items: GeReportItem[];
+}
+
+export interface AttendanceRecord {
+  userId: string;
+  name: string;
+  role: "member" | "officer" | "admin" | "guest";
+  checkedInAt: string;
+  type: "member" | "guest";
 }
 
 export interface TimerLog {

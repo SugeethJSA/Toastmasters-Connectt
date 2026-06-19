@@ -2,8 +2,9 @@ import React, { useState } from "react";
 import { TimelineItem, Meeting, MeetingSegment } from "../types";
 import { 
   Plus, Trash2, ArrowUp, ArrowDown, Check, Play, Pause, RotateCcw, FileText, Upload, Sparkles, 
-  HelpCircle, ChevronRight, CornerDownRight, RefreshCw, Loader2, Image, Quote, Edit3
+  HelpCircle, ChevronRight, CornerDownRight, RefreshCw, Loader2, Image, Quote, Edit3, GripVertical
 } from "lucide-react";
+import { TimerPresetsPanel } from "./TimerPresets";
 
 interface TMODMasterProps {
   meeting: Meeting;
@@ -52,6 +53,49 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
   const [formTitle, setFormTitle] = useState("");
   const [formPhotoUrl, setFormPhotoUrl] = useState("");
   const [formSegment, setFormSegment] = useState<MeetingSegment>(MeetingSegment.PREPARED_SPEECH);
+
+  // Inline editing state
+  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<Partial<TimelineItem>>({});
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+
+  const startEdit = (item: TimelineItem) => {
+    setEditingItem(item.id);
+    setEditValues({ ...item });
+  };
+
+  const saveEdit = (id: string) => {
+    const updated = meeting.timeline.map((item) =>
+      item.id === id ? { ...item, ...editValues } : item
+    );
+    onUpdateTimeline(updated);
+    setEditingItem(null);
+    setEditValues({});
+  };
+
+  const cancelEdit = () => {
+    setEditingItem(null);
+    setEditValues({});
+  };
+
+  // Drag and drop reorder handlers
+  const handleTimelineDragStart = (index: number) => {
+    setDragIndex(index);
+  };
+
+  const handleTimelineDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (dragIndex === null || dragIndex === index) return;
+    const list = [...meeting.timeline];
+    const [moved] = list.splice(dragIndex, 1);
+    list.splice(index, 0, moved);
+    onUpdateTimeline(list);
+    setDragIndex(index);
+  };
+
+  const handleTimelineDragEnd = () => {
+    setDragIndex(null);
+  };
 
   // Meeting info editing state
   const [info, setInfo] = useState({
@@ -200,7 +244,8 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
     setAiLoading(true);
     setAiOutput("");
     try {
-      const res = await fetch("/api/gemini/assist-speech", {
+      const API_BASE = import.meta.env.VITE_API_URL || "";
+      const res = await fetch(`${API_BASE}/api/gemini/assist-speech`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -273,37 +318,108 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
             <div className="divide-y divide-slate-100 font-sans">
               {meeting.timeline.map((item, index) => {
                 const isSpotlighted = activeTimelineItem?.id === item.id;
+                const isEditing = editingItem === item.id;
+                const isDragging = dragIndex === index;
                 return (
                   <div
                     key={item.id}
+                    draggable
+                    onDragStart={() => handleTimelineDragStart(index)}
+                    onDragOver={(e) => handleTimelineDragOver(e, index)}
+                    onDragEnd={handleTimelineDragEnd}
                     className={`p-4 sm:p-5 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
                       isSpotlighted ? "bg-tm-blue/5 border-l-4 border-tm-blue" : "hover:bg-slate-50/50"
-                    }`}
+                    } ${isDragging ? "opacity-50 border-2 border-dashed border-tm-blue" : ""}`}
                   >
-                    {/* Time & Segment details */}
+                    {/* Drag handle */}
+                    <div className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 shrink-0 self-center">
+                      <GripVertical className="w-4 h-4" />
+                    </div>
+                    {/* Time & Segment details - inline editable */}
                     <div className="flex gap-4 items-center shrink-0">
-                      <div className="text-center bg-slate-50 border border-slate-200/60 rounded px-2.5 py-1.5 min-w-[56px] shadow-sm">
-                        <span className="text-xs font-mono font-bold text-tm-blue">{item.time}</span>
-                        <span className="text-[10px] block text-slate-400 font-mono font-medium">{item.durationMin}m</span>
-                      </div>
+                      {isEditing ? (
+                        <div className="flex gap-1 items-center">
+                          <input
+                            type="time"
+                            value={editValues.time || ""}
+                            onChange={(e) => setEditValues((prev) => ({ ...prev, time: e.target.value }))}
+                            className="w-16 px-1 py-1 border rounded text-xs font-mono"
+                          />
+                          <input
+                            type="number"
+                            value={editValues.durationMin || 0}
+                            onChange={(e) => setEditValues((prev) => ({ ...prev, durationMin: Number(e.target.value) }))}
+                            className="w-12 px-1 py-1 border rounded text-xs font-mono"
+                            min={1}
+                            max={30}
+                          />
+                          <span className="text-[10px] text-slate-400">m</span>
+                        </div>
+                      ) : (
+                        <div className="text-center bg-slate-50 border border-slate-200/60 rounded px-2.5 py-1.5 min-w-[56px] shadow-sm">
+                          <span className="text-xs font-mono font-bold text-tm-blue">{item.time}</span>
+                          <span className="text-[10px] block text-slate-400 font-mono font-medium">{item.durationMin}m</span>
+                        </div>
+                      )}
 
                       <div>
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase ${
-                            item.segment === MeetingSegment.PREPARED_SPEECH ? "bg-emerald-100 text-emerald-800" :
-                            item.segment === MeetingSegment.TABLE_TOPICS ? "bg-amber-100 text-amber-800" :
-                            item.segment === MeetingSegment.EVALUATION ? "bg-indigo-100 text-indigo-800" :
-                            "bg-slate-100 text-slate-700"
-                          }`}>
-                            {item.segment.replace("_", " ")}
-                          </span>
+                          {isEditing ? (
+                            <select
+                              value={editValues.segment || ""}
+                              onChange={(e) => setEditValues((prev) => ({ ...prev, segment: e.target.value as MeetingSegment }))}
+                              className="text-[9px] px-1 py-0.5 border rounded font-mono"
+                            >
+                              <option value="PREPARED_SPEECH">Prepared Speech</option>
+                              <option value="TABLE_TOPICS">Table Topics</option>
+                              <option value="EVALUATION">Evaluation</option>
+                              <option value="BUSINESS">Business</option>
+                            </select>
+                          ) : (
+                            <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase ${
+                              item.segment === MeetingSegment.PREPARED_SPEECH ? "bg-emerald-100 text-emerald-800" :
+                              item.segment === MeetingSegment.TABLE_TOPICS ? "bg-amber-100 text-amber-800" :
+                              item.segment === MeetingSegment.EVALUATION ? "bg-indigo-100 text-indigo-800" :
+                              "bg-slate-100 text-slate-700"
+                            }`}>
+                              {item.segment.replace("_", " ")}
+                            </span>
+                          )}
                         </div>
-                        <p className="text-xs text-slate-400 font-mono mt-0.5">{item.role}</p>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editValues.role || ""}
+                            onChange={(e) => setEditValues((prev) => ({ ...prev, role: e.target.value }))}
+                            className="text-xs mt-0.5 px-1 py-0.5 border rounded w-32"
+                          />
+                        ) : (
+                          <p className="text-xs text-slate-400 font-mono mt-0.5">{item.role}</p>
+                        )}
                       </div>
                     </div>
 
-                    {/* Member & Topic details */}
+                    {/* Member & Topic details - inline editable */}
                   <div className="flex-1 min-w-[150px] flex items-center gap-3">
+                    {isEditing ? (
+                      <div className="w-full space-y-1">
+                        <input
+                          type="text"
+                          value={editValues.player || ""}
+                          onChange={(e) => setEditValues((prev) => ({ ...prev, player: e.target.value }))}
+                          placeholder="Speaker name"
+                          className="w-full px-2 py-1 border rounded text-xs"
+                        />
+                        <input
+                          type="text"
+                          value={editValues.title || ""}
+                          onChange={(e) => setEditValues((prev) => ({ ...prev, title: e.target.value }))}
+                          placeholder="Speech title (optional)"
+                          className="w-full px-2 py-1 border rounded text-xs"
+                        />
+                      </div>
+                    ) : (
+                      <>
                     {item.photoUrl || registeredUsers.find(u => u.name === item.player)?.photoUrl ? (
                       <img 
                         src={item.photoUrl || registeredUsers.find(u => u.name === item.player)?.photoUrl} 
@@ -323,11 +439,38 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
                         </div>
                       )}
                     </div>
+                    </>
+                    )}
                   </div>
 
-                    {/* Quick controls: Spotlight, Complete, Move (up/down), Delete */}
+                    {/* Quick controls: Edit/Save, Spotlight, Complete, Move (up/down), Delete */}
                     <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
                       
+                      {isEditing ? (
+                        <>
+                          <button
+                            onClick={() => saveEdit(item.id)}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white border border-emerald-600 cursor-pointer"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 border border-slate-200 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => startEdit(item)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-50 border border-slate-200 text-slate-500 hover:bg-slate-100 cursor-pointer"
+                          title="Edit slot"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                      )}
+
                       {/* Set Spotlight */}
                       <button
                         onClick={() => onSetSpotlight(isSpotlighted ? null : item)}
@@ -485,7 +628,7 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
         <div className="space-y-6">
           
           {/* LIVE STAGE DISPLAY & DIRECTOR CONTROLS */}
-          <div className="bg-white rounded-xl border border-slate-150 shadow-md overflow-hidden">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-md overflow-hidden">
             <div className="bg-gradient-to-r from-tm-dark to-tm-blue px-6 py-4 flex justify-between items-center text-white border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 bg-rose-500 rounded-full animate-ping shrink-0" />
@@ -525,7 +668,7 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
                   </div>
 
                   {/* Quote block */}
-                  <div className="bg-white p-2.5 rounded-lg border border-slate-150 relative">
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200 relative">
                     <Quote className="absolute -top-1.5 -left-1 w-3.5 h-3.5 text-tm-maroon transform rotate-180 opacity-55" />
                     <p className="text-[10px] italic text-slate-600 line-clamp-3 pl-3">
                       "{activeTimelineItem.quote || 'No presentation quote set yet for this spot.'}"
@@ -609,7 +752,7 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
                   </div>
                 </div>
               ) : (
-                <div className="text-center p-6 bg-slate-50 rounded-xl border border-slate-150 border-dashed text-slate-400 space-y-1.5">
+                <div className="text-center p-6 bg-slate-50 rounded-xl border border-slate-200 border-dashed text-slate-400 space-y-1.5">
                   <p className="font-semibold text-xs text-slate-600">No Spotlighted Speaker Selected</p>
                   <p className="text-[10px] max-w-xs mx-auto">
                     Choose one speaker slot from the segment timeline array on the left using the <strong>🎯 Spotlight Speaker</strong> buttons to sync the Live Stage.
@@ -679,6 +822,24 @@ export const TMODMaster: React.FC<TMODMasterProps> = ({
                   <span>-</span>
                   <span className="text-white font-mono">{(liveTimerState.maxSeconds/60)}m</span>
                 </p>
+              </div>
+
+              {/* Timer Presets */}
+              <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
+                <TimerPresetsPanel onApply={(preset) => {
+                  setLiveTimerState(prev => ({
+                    ...prev,
+                    minSeconds: preset.minSeconds,
+                    yellowSeconds: preset.yellowSeconds,
+                    maxSeconds: preset.maxSeconds,
+                    signal: "NONE",
+                  }));
+                  sendTimerControl("config", {
+                    minSeconds: preset.minSeconds,
+                    yellowSeconds: preset.yellowSeconds,
+                    maxSeconds: preset.maxSeconds,
+                  });
+                }} />
               </div>
             </div>
           </div>

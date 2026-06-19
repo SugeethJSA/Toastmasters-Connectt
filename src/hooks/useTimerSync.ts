@@ -36,7 +36,7 @@ function computeSignal(secs: number, min: number, yellow: number, max: number): 
   return "NONE";
 }
 
-export function useTimerSync(onSpotlightUpdate?: (item: { id: string; role: string; player: string; segment: string; time?: string; durationMin?: number; title?: string; completed?: boolean; photoUrl?: string; quote?: string } | null) => void) {
+export function useTimerSync(onSpotlightUpdate?: (item: { id: string; role: string; player: string; segment: string; time?: string; durationMin?: number; title?: string; completed?: boolean; photoUrl?: string; quote?: string } | null) => void, onMeetingUpdate?: (meeting: any) => void, onPollsUpdate?: (polls: any[]) => void) {
   const [state, setState] = useState<SyncedTimerState>(defaultState);
   const [topic, setTopic] = useState<StageTopic | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -120,6 +120,14 @@ export function useTimerSync(onSpotlightUpdate?: (item: { id: string; role: stri
         } else if (msg.type === "SPOTLIGHT_STATE") {
           if (onSpotlightUpdate) {
             onSpotlightUpdate(msg.spotlight || null);
+          }
+        } else if (msg.type === "MEETING_SYNC") {
+          if (onMeetingUpdate && msg.meeting) {
+            onMeetingUpdate(msg.meeting);
+          }
+        } else if (msg.type === "POLLS_UPDATE") {
+          if (onPollsUpdate && msg.polls) {
+            onPollsUpdate(msg.polls);
           }
         }
       };

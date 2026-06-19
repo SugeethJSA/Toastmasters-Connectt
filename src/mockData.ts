@@ -33,6 +33,7 @@ export const INITIAL_MEETING: Meeting = {
   phraseOfDay: "Pave the Path",
   phraseOfDayMeaning: "To create circumstances or provide resources that make it easier for others to succeed.",
   toastmasterOfTheDay: "Sarah Jenkins",
+  presidingOfficer: "",
   generalEvaluator: "Pranav Patel",
   tableTopicsMaster: "Jameson Vance",
   timer: "Theresa May",

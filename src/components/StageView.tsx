@@ -79,7 +79,7 @@ export const StageView: React.FC<StageViewProps> = ({
   React.useEffect(() => {
     const API_BASE = import.meta.env.VITE_API_URL || "";
     const fetchUsers = () => {
-      fetch(`${API_BASE}/api/users`)
+      fetch(`${API_BASE}/api/users`, { credentials: "include" })
         .then(r => r.json())
         .then(d => { if (d.users) setRegisteredUsers(d.users); })
         .catch(() => {});
@@ -344,7 +344,7 @@ export const StageView: React.FC<StageViewProps> = ({
             </div>
             {liveTimerState.isRunning && (
               <div className="text-center sm:text-right">
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-450 border border-emerald-500/30 font-mono px-2.5 py-1 rounded uppercase font-bold tracking-widest animate-pulse">
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono px-2.5 py-1 rounded uppercase font-bold tracking-widest animate-pulse">
                   Timer Sync'd
                 </span>
               </div>
@@ -544,7 +544,7 @@ export const StageView: React.FC<StageViewProps> = ({
             >
               <span className="w-1.5 h-1.5 rounded-full bg-tm-maroon animate-pulse" />
               <span className="font-medium">{guest}</span>
-              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest bg-slate-250 border border-slate-200/50 px-1 hover:bg-slate-300">
+              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest bg-slate-300 border border-slate-200/50 px-1 hover:bg-slate-300">
                 Guest
               </span>
               <button

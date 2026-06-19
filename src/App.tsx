@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { 
   Tv, Layers, Users, Star, ClipboardCheck, Settings, ShieldCheck, 
-  Wifi, WifiOff, Award, Lock, Unlock, TrendingUp, LogOut, User
+  Wifi, WifiOff, Award, Lock, Unlock, TrendingUp, LogOut, User, Sun, Moon, BookOpen, DollarSign, UserPlus, Download, FileText, Menu
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
+import { useTheme } from "./context/ThemeContext";
 
 import { 
   Meeting, TimelineItem, TimerLog, AhCounterLog, GrammarianUse, 
@@ -18,14 +19,15 @@ import {
 } from "./mockData";
 
 import { StageView } from "./components/StageView";
-import { TMODMaster } from "./components/TMODMaster";
-import { RolePlayers } from "./components/RolePlayers";
-import { Evaluations } from "./components/Evaluations";
-import { Archive } from "./components/Archive";
-import { Governance } from "./components/Governance";
-import { ClubPerformance } from "./components/ClubPerformance";
-import { AccessControl } from "./components/AccessControl";
-import { Members } from "./components/Members";
+import { ClubSettings } from "./components/ClubSettings";
+import { MeetingTemplates } from "./components/MeetingTemplates";
+import { ProfilePage } from "./components/ProfilePage";
+import { MeetingConductor } from "./components/MeetingConductor";
+import { EducationHub } from "./components/EducationHub";
+import { PeopleHub } from "./components/PeopleHub";
+import { ClubRecords } from "./components/ClubRecords";
+import { FinanceData } from "./components/FinanceData";
+import { NotificationBell } from "./components/NotificationBell";
 import { MeetingAuthorization } from "./components/MeetingAuthorization";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
@@ -38,14 +40,18 @@ const API_BASE = import.meta.env.VITE_API_URL || "";
 
 function Dashboard() {
   const { user, logout } = useAuth();
+  const theme = useTheme();
   const navigate = useNavigate();
+  const [avatarError, setAvatarError] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const [currentView, setCurrentView] = useState<"stage" | "stage_fullscreen" | "tmod" | "roleplayers" | "evaluations" | "archive" | "governance" | "performance" | "permissions" | "members">("stage");
+  const [currentView, setCurrentView] = useState<"conductor" | "education" | "people" | "records" | "finance" | "clubsettings" | "templates" | "profile" | "stage_fullscreen">("conductor");
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const [showAuthorization, setShowAuthorization] = useState<boolean>(false);
 
   const [meeting, setMeeting] = useState<Meeting>(INITIAL_MEETING);
   const loadedFromServer = useRef(false);
+  const remoteUpdateRef = useRef(false);
   const [activeTimelineItem, setActiveTimelineItem] = useState<TimelineItem | null>(
     INITIAL_MEETING.timeline.find(item => item.role === "Prepared Speaker 1") || null
   );
@@ -65,6 +71,17 @@ function Dashboard() {
         quote: spotlight.quote,
       });
     }
+  }, (meeting: any) => {
+    remoteUpdateRef.current = true;
+    setTimeout(() => { remoteUpdateRef.current = false; }, 1000);
+    setMeeting(meeting);
+    if (meeting.timerLogs) setTimerLogs(meeting.timerLogs);
+    if (meeting.ahLogs) setAhLogs(meeting.ahLogs);
+    if (meeting.grammarianLogs) setGrammarianLogs(meeting.grammarianLogs);
+    if (meeting.evaluations) setEvaluations(meeting.evaluations);
+    if (meeting.polls) setPolls(meeting.polls);
+  }, (polls: any[]) => {
+    setPolls(polls);
   });
 
   const [timerLogs, setTimerLogs] = useState<TimerLog[]>(INITIAL_TIMER_LOGS);
@@ -87,6 +104,11 @@ function Dashboard() {
         if (data.meeting) {
           loadedFromServer.current = true;
           setMeeting(data.meeting);
+          if (data.meeting.timerLogs) setTimerLogs(data.meeting.timerLogs);
+          if (data.meeting.ahLogs) setAhLogs(data.meeting.ahLogs);
+          if (data.meeting.grammarianLogs) setGrammarianLogs(data.meeting.grammarianLogs);
+          if (data.meeting.evaluations) setEvaluations(data.meeting.evaluations);
+          if (data.meeting.polls) setPolls(data.meeting.polls);
           const activeItem = data.meeting.activeTimelineItemId 
             ? data.meeting.timeline.find((item: any) => item.id === data.meeting.activeTimelineItemId)
             : data.meeting.timeline.find((item: any) => item.segment === "PREPARED_SPEECH");
@@ -95,22 +117,43 @@ function Dashboard() {
         loadedFromServer.current = true;
       })
       .catch(() => { loadedFromServer.current = true; });
+
+    fetch(`${API_BASE}/api/meetings/archive`, { credentials: "include" })
+      .then(res => res.json())
+      .then(data => {
+        if (data.archived) setPastMeetings(data.archived);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
     if (meeting && loadedFromServer.current) {
       const persistState = async () => {
         try {
+          const payload = {
+            ...meeting,
+            timerLogs,
+            ahLogs,
+            grammarianLogs,
+            evaluations,
+            polls
+          };
           await fetch(`${API_BASE}/api/meetings/sync`, {
             method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-            body: JSON.stringify(meeting)
+            body: JSON.stringify(payload)
           });
         } catch (err) {}
       };
-      const debounceTimer = setTimeout(persistState, 500);
+      const debounceTimer = setTimeout(() => {
+        if (remoteUpdateRef.current) {
+          remoteUpdateRef.current = false;
+          return;
+        }
+        persistState();
+      }, 500);
       return () => clearTimeout(debounceTimer);
     }
-  }, [meeting]);
+  }, [meeting, timerLogs, ahLogs, grammarianLogs, evaluations, polls]);
 
   const handleUpdateTimeline = (newTimeline: TimelineItem[]) => {
     setMeeting(prev => ({ ...prev, timeline: newTimeline }));
@@ -134,15 +177,32 @@ function Dashboard() {
 
   const handleAddTimerLog = (log: TimerLog) => setTimerLogs(prev => [log, ...prev]);
   const handleAddEvaluation = (item: EvaluationItem) => setEvaluations(prev => [item, ...prev]);
-  const handleAddPastMeeting = (newPastMeeting: any) => setPastMeetings(prev => [newPastMeeting, ...prev]);
-  const handleUpdatePastMeeting = (id: string, updated: any) => setPastMeetings(prev => prev.map(m => m.id === id ? updated : m));
+  const handleUpdateGeReport = (report: any) => setMeeting(prev => ({ ...prev, geReport: report }));
+  const handleAddPastMeeting = (newPastMeeting: any) => {
+    setPastMeetings(prev => [newPastMeeting, ...prev]);
+    fetch(`${API_BASE}/api/meetings/archive`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify(newPastMeeting)
+    }).catch(() => {});
+  };
+  const handleUpdatePastMeeting = (id: string, updated: any) => {
+    setPastMeetings(prev => prev.map(m => m.id === id ? updated : m));
+    fetch(`${API_BASE}/api/meetings/archive`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify(updated)
+    }).catch(() => {});
+  };
 
   const handleApproveCurrentMOM = () => {
     const summary = `Sophrosyne VIT Area F4 District 120 Meeting #${meeting.number} (Date: ${meeting.date}) has been sealed under official club governance parameters.\n\nMeeting Theme: "${meeting.theme}"\nWord of the Day: "${meeting.wordOfDay}"\nPhrase of the Day: "${meeting.phraseOfDay}"\n\nSummary of Logs Executed:\n- Timer Tracks Complete: Recorded ${timerLogs.length} verified timers.\n- Ah-Counter click counts: Formally added ${ahLogs.length} speaker checklists.\n- Grammarian: ${grammarianLogs.length} speeches checked for excellent phrasing syntax.\n\nSealed and certified by ${user?.name || "President"} on ${new Date().toLocaleDateString()}.`;
-    const record = { id: "meet-" + meeting.number, number: meeting.number, date: meeting.date, theme: meeting.theme, wordOfDay: meeting.wordOfDay, phraseOfDay: meeting.phraseOfDay, editorialSummary: summary, approved: true, approvedBy: (user?.name || "President") + " (President)" };
+    const record = { id: "meet-" + meeting.number, number: meeting.number, date: meeting.date, theme: meeting.theme, wordOfDay: meeting.wordOfDay, phraseOfDay: meeting.phraseOfDay, presidingOfficer: meeting.presidingOfficer, editorialSummary: summary, approved: true, approvedBy: (user?.name || "President") + " (President)", timerLogs, ahLogs, grammarianLogs, evaluations, polls, attendance: meeting.attendance, guestList: meeting.guestList, timeline: meeting.timeline, secretaryNotes: (meeting.timeline || []).map((item: any) => ({ timelineItemId: item.id, note: "" })) };
     setPastMeetings(prev => prev.some(m => m.id === record.id) ? prev.map(m => m.id === record.id ? record : m) : [record, ...prev]);
+    fetch(`${API_BASE}/api/meetings/archive`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify(record)
+    }).catch(() => {});
     alert("Meeting #" + meeting.number + " has been sealed!");
-    setCurrentView("archive");
+    setCurrentView("records");
   };
 
   const handleLogout = async () => {
@@ -151,11 +211,11 @@ function Dashboard() {
   };
 
   const handleToggleFullScreen = () => {
-    if (currentView === "stage") {
+    if (currentView === "conductor") {
       setCurrentView("stage_fullscreen");
       document.documentElement.requestFullscreen().catch(() => {});
     } else {
-      setCurrentView("stage");
+      setCurrentView("conductor");
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => {});
       }
@@ -163,43 +223,36 @@ function Dashboard() {
   };
 
   const views: { key: string; label: string; icon: any; group?: string }[] = [
-    { key: "stage", label: "Stage View", icon: Tv },
-    { key: "tmod", label: "TMOD Cockpit", icon: Layers, group: "Assembly Views" },
-    { key: "roleplayers", label: "Role Players", icon: Users },
-    { key: "evaluations", label: "Evaluations", icon: Star },
-    { key: "archive", label: "Archive & MOM", icon: ClipboardCheck },
-    { key: "members", label: "Club Roster", icon: Users, group: "Admin" },
-    { key: "performance", label: "Club Performance", icon: TrendingUp, group: "Admin" },
-    { key: "permissions", label: "Access Control", icon: ShieldCheck, group: "Admin" },
-    { key: "governance", label: "Ballot Controls", icon: Settings },
+    { key: "conductor", label: "Meeting Conductor", icon: Layers },
+    { key: "education", label: "Education", icon: Star },
+    { key: "records", label: "Club Records", icon: ClipboardCheck },
+    { key: "people", label: "People", icon: Users, group: "Admin" },
+    { key: "finance", label: "Finance & Data", icon: DollarSign, group: "Admin" },
+    { key: "templates", label: "Templates", icon: FileText, group: "Admin" },
+    { key: "clubsettings", label: "Club Settings", icon: Settings, group: "Admin" },
   ];
 
   const hasAccess = (key: string) => {
     if (!user) return false;
     if (user.role === "admin" || user.role === "officer") return true;
 
+    const eq = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
     const name = user.name;
-    const isSpeaker = meeting.timeline.some(t => t.segment === "PREPARED_SPEECH" && t.player === name);
-    const isEvaluator = meeting.timeline.some(t => t.segment === "EVALUATION" && t.player === name);
-    const isTableTopicsSpeaker = meeting.timeline.some(t => t.segment === "TABLE_TOPICS" && t.player === name);
+    const isSpeaker = meeting.timeline.some(t => t.segment === "PREPARED_SPEECH" && eq(t.player, name));
+    const isEvaluator = meeting.timeline.some(t => t.segment === "EVALUATION" && eq(t.player, name));
+    const isTableTopicsSpeaker = meeting.timeline.some(t => t.segment === "TABLE_TOPICS" && eq(t.player, name));
+    const hasRole = (...candidates: (string | undefined)[]) => candidates.some(c => c && eq(c, name));
 
     switch (key) {
-      case "stage":
-      case "archive":
-        return true; // Public/Member views
-      case "tmod":
-        return meeting.toastmasterOfTheDay === name;
-      case "roleplayers":
-        return [meeting.timer, meeting.ahCounter, meeting.grammarian, meeting.tableTopicsMaster].includes(name) || isSpeaker || isTableTopicsSpeaker;
-      case "evaluations":
-        return meeting.generalEvaluator === name || isEvaluator || isSpeaker || isTableTopicsSpeaker;
-      case "governance":
-        return meeting.sergeantAtArms === name || meeting.toastmasterOfTheDay === name;
-      case "performance":
-      case "members":
+      case "profile":
+      case "conductor":
+      case "education":
+      case "records":
+      case "people":
+      case "finance":
+      case "templates":
+      case "clubsettings":
         return true;
-      case "permissions":
-        return meeting.toastmasterOfTheDay === name;
       default:
         return false;
     }
@@ -208,19 +261,22 @@ function Dashboard() {
   const allowedViews = views.filter(v => hasAccess(v.key));
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-55/40 text-slate-800 font-sans">
+    <div className="flex h-screen overflow-hidden bg-slate-100/40 text-slate-800 font-sans">
       {currentView !== "stage_fullscreen" && (
-      <aside className="w-72 bg-[#002a44] text-white flex flex-col justify-between p-4.5 border-r border-tm-blue/20 shrink-0 select-none">
-        <div className="space-y-6">
+        <>
+          <div className={`fixed inset-0 bg-black/50 z-30 lg:hidden transition-opacity ${sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setSidebarOpen(false)} />
+          <aside className={`w-72 bg-[#002a44] text-white flex flex-col p-4.5 border-r border-tm-blue/20 shrink-0 select-none overflow-hidden fixed lg:static inset-y-0 left-0 z-40 transition-transform duration-200 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <div className="space-y-6 shrink-0">
           <div className="flex items-center gap-3 bg-[#053a5c] px-4 py-3 rounded-xl border border-white/5">
             <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-tm-yellow rounded-bl-lg" />
             <div className="w-10 h-10 rounded-full bg-white p-1 overflow-hidden shrink-0 flex items-center justify-center">
               <img src="/toastmasters-logo.svg" alt="Toastmasters" className="w-full h-full object-contain" />
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="font-display font-bold text-xs tracking-wider text-white">TOASTMASTERS</h1>
               <p className="text-[10px] text-tm-yellow uppercase tracking-widest font-semibold leading-none mt-1">Pro Platform</p>
             </div>
+            <NotificationBell />
           </div>
 
           <div className="bg-black/20 p-3 rounded-lg border border-white/5">
@@ -239,32 +295,31 @@ function Dashboard() {
               </a>
             )}
           </div>
+        </div>
 
-          <nav className="space-y-1 font-sans text-xs font-medium">
-            <p className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-widest px-2.5 pb-1">Views</p>
-            {allowedViews.filter(v => !v.group).map(v => (
-              <button key={v.key} onClick={() => setCurrentView(v.key as any)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-l-lg transition-all duration-200 cursor-pointer ${currentView === v.key && !showAuthorization ? "bg-white/10 text-white font-bold border-r-4 border-[#F2DF74]" : "text-slate-300 hover:bg-white/5 hover:text-white border-r-4 border-transparent hover:border-[#F2DF74]/50"}`}>
-                <div className="flex items-center gap-2.5"><v.icon className="w-4 h-4 shrink-0 text-slate-300" /><span>{v.label}</span></div>
-              </button>
-            ))}
-            {allowedViews.filter(v => v.group).length > 0 && (
-              <>
-                <p className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-widest px-2.5 pt-4 pb-1">Admin</p>
-                {allowedViews.filter(v => v.group).map(v => (
-              <button key={v.key} onClick={() => {
-                if (v.key === "stage") { navigate("/stage"); return; }
-                setCurrentView(v.key as any);
-              }}
-                    className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-l-lg transition-all duration-200 cursor-pointer ${currentView === v.key && !showAuthorization ? "bg-white/10 text-white font-bold border-r-4 border-[#F2DF74]" : "text-slate-300 hover:bg-white/5 hover:text-white border-r-4 border-transparent hover:border-[#F2DF74]/50"}`}>
-                    <v.icon className="w-4 h-4 shrink-0 text-slate-300" /><span>{v.label}</span>
-                  </button>
-                ))}
-              </>
-            )}
-          </nav>
+        <div className="flex-1 overflow-y-auto min-h-0 space-y-1 font-sans text-xs font-medium my-2 scrollbar-thin">
+          <p className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-widest px-2.5 pb-1">Views</p>
+          {allowedViews.filter(v => !v.group).map(v => (
+            <button key={v.key} onClick={() => setCurrentView(v.key as any)}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-l-lg transition-all duration-200 cursor-pointer ${currentView === v.key && !showAuthorization ? "bg-white/10 text-white font-bold border-r-4 border-[#F2DF74]" : "text-slate-300 hover:bg-white/5 hover:text-white border-r-4 border-transparent hover:border-[#F2DF74]/50"}`}>
+              <div className="flex items-center gap-2.5"><v.icon className="w-4 h-4 shrink-0 text-slate-300" /><span>{v.label}</span></div>
+            </button>
+          ))}
+          {allowedViews.filter(v => v.group).length > 0 && (
+            <>
+              <p className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-widest px-2.5 pt-4 pb-1">Admin</p>
+              {allowedViews.filter(v => v.group).map(v => (
+            <button key={v.key} onClick={() => setCurrentView(v.key as any)}
+                  className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-l-lg transition-all duration-200 cursor-pointer ${currentView === v.key && !showAuthorization ? "bg-white/10 text-white font-bold border-r-4 border-[#F2DF74]" : "text-slate-300 hover:bg-white/5 hover:text-white border-r-4 border-transparent hover:border-[#F2DF74]/50"}`}>
+                  <v.icon className="w-4 h-4 shrink-0 text-slate-300" /><span>{v.label}</span>
+                </button>
+              ))}
+            </>
+          )}
+        </div>
 
-          <div className="px-2 pb-1 pt-1.5 shrink-0">
+        <div className="shrink-0 space-y-3">
+          <div className="px-2 pb-1 pt-1.5">
             {meeting.status === "SCHEDULED" ? (
               <button onClick={() => setShowAuthorization(true)} className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold font-display uppercase tracking-wider text-[10px] transition-all cursor-pointer shadow select-none">
                 <Unlock className="w-3.5 h-3.5 shrink-0" /><span>Start Meeting</span>
@@ -275,41 +330,38 @@ function Dashboard() {
               </button>
             )}
           </div>
-        </div>
 
-        <div className="space-y-3 pt-4 border-t border-white/5 font-sans">
-          <div className="flex items-center gap-2.5 px-2">
-            <div className="w-8 h-8 rounded-full bg-tm-yellow/20 flex items-center justify-center text-tm-yellow font-bold text-xs">
-              {user?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "U"}
+          <div className="space-y-3 pt-4 border-t border-white/5 font-sans">
+            <div className="flex items-center gap-2.5 px-2 cursor-pointer hover:bg-white/5 rounded-lg py-1 transition-colors" onClick={() => setCurrentView("profile")} title="Edit Profile">
+              <div className="w-8 h-8 rounded-full bg-tm-yellow/20 flex items-center justify-center overflow-hidden shrink-0">
+                {!avatarError && (user?.avatarUrl || user?.photoUrl) ? (
+                  <img src={user?.avatarUrl || user?.photoUrl} alt="" className="w-full h-full object-cover" onError={() => setAvatarError(true)} />
+                ) : (
+                  <span className="text-tm-yellow font-bold text-xs">{user?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "U"}</span>
+                )}
+              </div>
+              <div className="text-[10px]">
+                <p className="text-white font-semibold truncate max-w-[160px]">{user?.name || "User"}</p>
+                <p className="text-slate-400 font-medium capitalize">{user?.role || "Member"}</p>
+              </div>
+              <button onClick={(e) => { e.stopPropagation(); handleLogout(); }} className="ml-auto text-slate-400 hover:text-white p-1" title="Logout">
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
-            <div className="text-[10px]">
-              <p className="text-white font-semibold truncate max-w-[160px]">{user?.name || "User"}</p>
-              <p className="text-slate-400 font-medium capitalize">{user?.role || "Member"}</p>
-            </div>
-            <button onClick={handleLogout} className="ml-auto text-slate-400 hover:text-white p-1" title="Logout">
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between text-[9px] font-mono px-2 py-1.5 bg-black/25 rounded-md text-slate-400">
-            <span>API:</span>
-            {apiOnline === true ? (
-              <span className="flex items-center gap-1.5 text-emerald-400 font-bold"><Wifi className="w-3 h-3" /> ONLINE</span>
-            ) : apiOnline === false ? (
-              <span className="flex items-center gap-1.5 text-amber-400 font-bold"><WifiOff className="w-3 h-3" /> OFFLINE</span>
-            ) : (
-              <span className="text-slate-500">...</span>
-            )}
           </div>
         </div>
       </aside>
+      </>
       )}
 
       <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 relative">
         {currentView !== "stage_fullscreen" && (
-        <header className="h-14 bg-white border-b border-slate-100 px-6.5 flex justify-between items-center shrink-0">
+        <header className="h-14 bg-white border-b border-slate-100 px-4 md:px-6.5 flex justify-between items-center shrink-0">
           <div className="flex items-center gap-2 text-xs font-sans">
-            <span className="text-slate-400">View:</span>
+            <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-1 -ml-1 text-slate-500 hover:text-slate-700 cursor-pointer" title="Menu">
+              <Menu className="w-5 h-5" />
+            </button>
+            <span className="text-slate-400 hidden sm:inline">View:</span>
             <span className="font-bold text-slate-700 capitalize flex items-center gap-1">{currentView}</span>
           </div>
           <div className="flex items-center gap-4.5">
@@ -336,15 +388,15 @@ function Dashboard() {
                 <MeetingAuthorization meeting={meeting} onAuthorizeAndStart={() => { setMeeting(prev => ({ ...prev, status: "IN_PROGRESS" })); setShowAuthorization(false); navigate("/stage"); }} onCancel={() => setShowAuthorization(false)} />
               ) : (
                 <>
-                  {(currentView === "stage" || currentView === "stage_fullscreen") && <StageView meeting={meeting} setMeeting={setMeeting} activeTimelineItem={activeTimelineItem} liveTimerState={liveTimerState} setLiveTimerState={setLiveTimerState} sendTimerControl={sendTimerControl} stageTopic={stageTopic} sendTopicControl={sendTopicControl} onToggleFullScreen={handleToggleFullScreen} isFullScreen={currentView === "stage_fullscreen"} />}
-                  {currentView === "tmod" && hasAccess("tmod") && <TMODMaster meeting={meeting} setMeeting={setMeeting} activeTimelineItem={activeTimelineItem} onUpdateTimeline={handleUpdateTimeline} onSetSpotlight={handleSetSpotlight} liveTimerState={liveTimerState} setLiveTimerState={setLiveTimerState} sendTimerControl={sendTimerControl} />}
-                  {currentView === "roleplayers" && hasAccess("roleplayers") && <RolePlayers meeting={meeting} currentUser={user} timerLogs={timerLogs} ahLogs={ahLogs} grammarianLogs={grammarianLogs} topicsPrompts={topicsPrompts} onAddTimerLog={handleAddTimerLog} onUpdateAhLogs={setAhLogs} onUpdateGrammarianLogs={setGrammarianLogs} onUpdateTopicsPrompts={setTopicsPrompts} liveTimerState={liveTimerState} setLiveTimerState={setLiveTimerState} sendTimerControl={sendTimerControl} stageTopic={stageTopic} sendTopicControl={sendTopicControl} />}
-                  {currentView === "evaluations" && hasAccess("evaluations") && <Evaluations meeting={meeting} evaluations={evaluations} onAddEvaluation={handleAddEvaluation} />}
-                  {currentView === "archive" && hasAccess("archive") && <Archive meeting={meeting} timerLogs={timerLogs} ahLogs={ahLogs} grammarianLogs={grammarianLogs} pastMeetings={pastMeetings} onAddPastMeeting={handleAddPastMeeting} onUpdatePastMeeting={handleUpdatePastMeeting} />}
-                  {currentView === "governance" && hasAccess("governance") && <Governance meeting={meeting} polls={polls} onUpdatePolls={setPolls} onApproveCurrentMOM={handleApproveCurrentMOM} />}
-                  {currentView === "performance" && hasAccess("performance") && <ClubPerformance />}
-                  {currentView === "members" && hasAccess("members") && <Members meeting={meeting} setMeeting={setMeeting} />}
-                  {currentView === "permissions" && hasAccess("permissions") && <AccessControl meeting={meeting} setMeeting={setMeeting} />}
+                  {currentView === "conductor" && hasAccess("conductor") && <MeetingConductor meeting={meeting} setMeeting={setMeeting} user={user} activeTimelineItem={activeTimelineItem} liveTimerState={liveTimerState} setLiveTimerState={setLiveTimerState} sendTimerControl={sendTimerControl} stageTopic={stageTopic} sendTopicControl={sendTopicControl} timerLogs={timerLogs} ahLogs={ahLogs} grammarianLogs={grammarianLogs} topicsPrompts={topicsPrompts} onAddTimerLog={handleAddTimerLog} onUpdateAhLogs={setAhLogs} onUpdateGrammarianLogs={setGrammarianLogs} onUpdateTopicsPrompts={setTopicsPrompts} onUpdateTimeline={handleUpdateTimeline} onSetSpotlight={handleSetSpotlight} onToggleFullScreen={handleToggleFullScreen} isFullScreen={false} />}
+                  {currentView === "education" && hasAccess("education") && <EducationHub meeting={meeting} user={user} evaluations={evaluations} onAddEvaluation={handleAddEvaluation} onUpdateGeReport={handleUpdateGeReport} />}
+                  {currentView === "people" && hasAccess("people") && <PeopleHub meeting={meeting} setMeeting={setMeeting} />}
+                  {currentView === "records" && hasAccess("records") && <ClubRecords meeting={meeting} timerLogs={timerLogs} ahLogs={ahLogs} grammarianLogs={grammarianLogs} evaluations={evaluations} polls={polls} pastMeetings={pastMeetings} onAddPastMeeting={handleAddPastMeeting} onUpdatePastMeeting={handleUpdatePastMeeting} onUpdatePolls={setPolls} onApproveCurrentMOM={handleApproveCurrentMOM} />}
+                  {currentView === "finance" && hasAccess("finance") && <FinanceData />}
+                  {currentView === "templates" && hasAccess("templates") && <MeetingTemplates meeting={meeting} setMeeting={setMeeting} />}
+                  {currentView === "clubsettings" && hasAccess("clubsettings") && <ClubSettings />}
+                  {currentView === "profile" && hasAccess("profile") && <ProfilePage />}
+                  {currentView === "stage_fullscreen" && <StageView meeting={meeting} setMeeting={setMeeting} activeTimelineItem={activeTimelineItem} liveTimerState={liveTimerState} setLiveTimerState={setLiveTimerState} sendTimerControl={sendTimerControl} stageTopic={stageTopic} sendTopicControl={sendTopicControl} onToggleFullScreen={handleToggleFullScreen} isFullScreen={true} />}
                 </>
               )}
             </motion.div>
